@@ -44,8 +44,8 @@ export default function LoginPage() {
         style={{ background: "radial-gradient(circle, rgba(45, 212, 191, 0.3) 0%, transparent 70%)" }}
       />
 
-      <FadeInUp>
-        <div className="w-full max-w-md relative">
+      <FadeInUp className="w-full max-w-xl">
+        <div className="relative">
           <div className="text-center mb-8">
             <h1 className="text-3xl font-bold text-white tracking-tight">
               Fina<span className="text-teal-400" style={{ textShadow: "0 0 12px rgba(45, 212, 191, 0.4)" }}>Meter</span>
@@ -55,7 +55,7 @@ export default function LoginPage() {
             </p>
           </div>
 
-          <div className="glass rounded-xl p-6 space-y-6">
+          <div className="glass rounded-xl p-10 space-y-6">
             <button
               onClick={signInWithGoogle}
               className="w-full flex items-center justify-center gap-3 bg-white text-gray-900 font-medium py-3 px-4 rounded-lg hover:bg-gray-100 transition-colors"

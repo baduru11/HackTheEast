@@ -16,6 +16,7 @@ class DailyQuizOut(BaseModel):
 
 
 class DailyQuizSubmit(BaseModel):
+    quiz_id: int
     answers: list[int]
 
 

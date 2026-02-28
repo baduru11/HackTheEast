@@ -558,6 +558,11 @@ async def get_daily_quiz_by_date(date_str: str):
     return result.data[0] if result.data else None
 
 
+async def get_daily_quiz_by_id(quiz_id: int):
+    result = supabase.table("daily_quizzes").select("*").eq("id", quiz_id).limit(1).execute()
+    return result.data[0] if result.data else None
+
+
 async def insert_daily_quiz(date_str: str, questions: list[dict], source_article_ids: list[int]):
     result = supabase.table("daily_quizzes").insert({
         "date": date_str,

@@ -58,7 +58,8 @@ export default function DailyQuizPage() {
   const [alreadyCompleted, setAlreadyCompleted] = useState(false);
 
   useEffect(() => {
-    fetch("/api/v1/daily-quiz/today")
+    const userDate = new Date().toLocaleDateString("en-CA"); // YYYY-MM-DD in user's timezone
+    fetch(`/api/v1/daily-quiz/today?date=${userDate}`)
       .then((r) => r.json())
       .then((res) => {
         if (res.success) setQuiz(res.data);
@@ -160,7 +161,7 @@ export default function DailyQuizPage() {
     const res = await fetch("/api/v1/daily-quiz/check", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ question_index: current, answer: selected }),
+      body: JSON.stringify({ quiz_id: quiz.id, question_index: current, answer: selected }),
     });
     const data = await res.json();
     if (data.success) setFeedback(data.data);
@@ -184,7 +185,7 @@ export default function DailyQuizPage() {
       const res = await fetch("/api/v1/daily-quiz/submit", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${session?.access_token}` },
-        body: JSON.stringify({ answers: finalAnswers }),
+        body: JSON.stringify({ quiz_id: quiz.id, answers: finalAnswers }),
       });
       const data = await res.json();
       if (data.success) {

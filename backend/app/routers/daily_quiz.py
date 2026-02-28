@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
 from app.dependencies import get_current_user
 from app.db import supabase as db
@@ -7,16 +7,18 @@ from app.services.daily_quiz import get_or_create_daily_quiz
 
 
 class DailyQuizCheckBody(BaseModel):
+    quiz_id: int
     question_index: int
     answer: int
+
 
 router = APIRouter(prefix="/api/v1/daily-quiz", tags=["daily-quiz"])
 
 
 @router.get("/today")
-async def get_today_quiz():
+async def get_today_quiz(date: str | None = Query(None)):
     try:
-        quiz = await get_or_create_daily_quiz()
+        quiz = await get_or_create_daily_quiz(target_date=date)
     except ValueError as e:
         return {"success": False, "error": {"code": "NO_QUIZ", "message": str(e)}}
 
@@ -40,9 +42,7 @@ async def get_today_quiz():
 
 @router.post("/check")
 async def check_daily_answer(body: DailyQuizCheckBody):
-    from datetime import date
-    today = date.today().isoformat()
-    quiz = await db.get_daily_quiz_by_date(today)
+    quiz = await db.get_daily_quiz_by_id(body.quiz_id)
     if not quiz:
         return {"success": False, "error": {"code": "NO_QUIZ", "message": "No quiz available"}}
 
@@ -66,12 +66,9 @@ async def submit_daily_quiz(
     body: DailyQuizSubmit,
     user_id: str = Depends(get_current_user),
 ):
-    from datetime import date
-
-    today = date.today().isoformat()
-    quiz = await db.get_daily_quiz_by_date(today)
+    quiz = await db.get_daily_quiz_by_id(body.quiz_id)
     if not quiz:
-        return {"success": False, "error": {"code": "NO_QUIZ", "message": "No quiz available today"}}
+        return {"success": False, "error": {"code": "NO_QUIZ", "message": "No quiz available"}}
 
     # Check if already attempted
     existing = await db.get_daily_quiz_attempt(user_id, quiz["id"])

@@ -1,10 +1,29 @@
 import asyncio
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urlunparse, parse_qs, urlencode
 
 import httpx
 
 from app.db import supabase as db
 from app.services import finnhub, gnews, rss_feeds, scraper, llm
+
+# Query params to strip for URL normalization (tracking/analytics)
+_STRIP_PARAMS = {"utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content",
+                 "ref", "source", "fbclid", "gclid", "mc_cid", "mc_eid"}
+
+
+def _normalize_url(url: str) -> str:
+    """Normalize a URL for deduplication: strip tracking params, www, trailing slash."""
+    try:
+        parsed = urlparse(url)
+        host = (parsed.hostname or "").lower().removeprefix("www.")
+        # Strip tracking query params
+        params = parse_qs(parsed.query, keep_blank_values=True)
+        cleaned = {k: v for k, v in params.items() if k.lower() not in _STRIP_PARAMS}
+        query = urlencode(cleaned, doseq=True)
+        path = parsed.path.rstrip("/") or "/"
+        return urlunparse(("https", host, path, "", query, ""))
+    except Exception:
+        return url
 
 DOMAIN_TO_SOURCE = {
     "fool.com": "Motley Fool",
@@ -62,7 +81,8 @@ async def ingest_finnhub():
     saved_count = 0
 
     for article in articles:
-        if await db.article_exists(finnhub_id=article.get("finnhub_id"), original_url=article.get("original_url")):
+        normalized = _normalize_url(article.get("original_url", ""))
+        if await db.article_exists(finnhub_id=article.get("finnhub_id"), original_url=normalized):
             continue
 
         article_id = await db.insert_article({
@@ -70,7 +90,7 @@ async def ingest_finnhub():
             "source_name": article.get("source_name", ""),
             "headline": article.get("headline", ""),
             "snippet": article.get("snippet"),
-            "original_url": article.get("original_url", ""),
+            "original_url": normalized,
             "image_url": article.get("image_url"),
             "published_at": article.get("published_at"),
             "processing_status": "pending",
@@ -94,7 +114,8 @@ async def _ingest_gnews_articles(articles: list[dict], label: str) -> int:
     saved_count = 0
 
     for article in articles:
-        if await db.article_exists(gnews_url=article.get("gnews_url"), original_url=article.get("original_url")):
+        normalized = _normalize_url(article.get("original_url", ""))
+        if await db.article_exists(original_url=normalized):
             continue
 
         region = article.pop("region", None)
@@ -103,7 +124,7 @@ async def _ingest_gnews_articles(articles: list[dict], label: str) -> int:
             "source_name": article.get("source_name", ""),
             "headline": article.get("headline", ""),
             "snippet": article.get("snippet"),
-            "original_url": article.get("original_url", ""),
+            "original_url": normalized,
             "image_url": article.get("image_url"),
             "published_at": article.get("published_at"),
             "processing_status": "pending",
@@ -145,14 +166,15 @@ async def ingest_rss():
     saved_count = 0
 
     for article in articles:
-        if await db.article_exists(original_url=article.get("original_url")):
+        normalized = _normalize_url(article.get("original_url", ""))
+        if await db.article_exists(original_url=normalized):
             continue
 
         await db.insert_article({
             "source_name": article.get("source_name", ""),
             "headline": article.get("headline", ""),
             "snippet": article.get("snippet"),
-            "original_url": article.get("original_url", ""),
+            "original_url": normalized,
             "image_url": article.get("image_url"),
             "published_at": article.get("published_at"),
             "processing_status": "pending",
@@ -164,8 +186,12 @@ async def ingest_rss():
     return saved_count
 
 
+MAX_RETRIES = 3
+
+
 async def recover_stuck_articles():
-    """Reset articles stuck in scraping/generating for more than 10 minutes."""
+    """Reset articles stuck in scraping/generating for more than 10 minutes.
+    Permanently fails articles that have exceeded MAX_RETRIES attempts."""
     from datetime import datetime, timedelta, timezone
 
     cutoff = (datetime.now(timezone.utc) - timedelta(minutes=10)).isoformat()
@@ -173,13 +199,27 @@ async def recover_stuck_articles():
     for status in ("scraping", "generating"):
         stuck, _ = await db.get_articles(status=status, page=1, limit=50)
         recovered = 0
+        failed = 0
         for article in stuck:
             updated = article.get("updated_at") or article.get("created_at", "")
             if updated and updated < cutoff:
-                await db.update_article(article["id"], {"processing_status": "pending"})
-                recovered += 1
+                retries = article.get("retry_count", 0) + 1
+                if retries >= MAX_RETRIES:
+                    await db.update_article(article["id"], {
+                        "processing_status": "failed",
+                        "retry_count": retries,
+                    })
+                    failed += 1
+                else:
+                    await db.update_article(article["id"], {
+                        "processing_status": "pending",
+                        "retry_count": retries,
+                    })
+                    recovered += 1
         if recovered:
             print(f"Recovered {recovered} articles stuck in '{status}'")
+        if failed:
+            print(f"Permanently failed {failed} articles stuck in '{status}' (exceeded {MAX_RETRIES} retries)")
 
 
 async def _process_single_article(article: dict) -> bool:

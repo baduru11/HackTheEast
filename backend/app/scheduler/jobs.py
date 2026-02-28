@@ -1,5 +1,5 @@
 import asyncio
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from app.services.pipeline import (
     ingest_finnhub,
@@ -19,10 +19,31 @@ from app.services.weekly_report import generate_all_weekly_reports
 _tasks: list[asyncio.Task] = []
 
 
+def _utc_to_et_hour(utc_dt: datetime) -> int:
+    """Convert UTC datetime to Eastern Time hour, accounting for DST.
+
+    ET is UTC-5 (EST) or UTC-4 (EDT). US DST runs from 2nd Sunday of March
+    to 1st Sunday of November.
+    """
+    year = utc_dt.year
+    # 2nd Sunday of March
+    march1 = datetime(year, 3, 1, tzinfo=timezone.utc)
+    dst_start = march1 + timedelta(days=(6 - march1.weekday()) % 7 + 7)
+    dst_start = dst_start.replace(hour=7)  # 2 AM ET = 7 AM UTC in EST
+
+    # 1st Sunday of November
+    nov1 = datetime(year, 11, 1, tzinfo=timezone.utc)
+    dst_end = nov1 + timedelta(days=(6 - nov1.weekday()) % 7)
+    dst_end = dst_end.replace(hour=6)  # 2 AM ET = 6 AM UTC in EDT
+
+    offset = -4 if dst_start <= utc_dt < dst_end else -5
+    return (utc_dt.hour + offset) % 24
+
+
 def get_adaptive_interval_minutes() -> int:
     """Return polling interval based on market hours (ET)."""
-    now = datetime.utcnow()
-    et_hour = (now.hour - 5) % 24
+    now = datetime.now(timezone.utc)
+    et_hour = _utc_to_et_hour(now)
     if 9 <= et_hour < 16:
         return 5
     elif 7 <= et_hour < 9 or 16 <= et_hour < 20:
@@ -58,7 +79,7 @@ async def _process_pending_job():
 async def _resolve_predictions_daily():
     """Fire at 21:05 UTC on weekdays (market close ET)."""
     while True:
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         next_run = now.replace(hour=21, minute=5, second=0, microsecond=0)
         if next_run <= now:
             next_run += timedelta(days=1)
@@ -77,7 +98,7 @@ async def _resolve_predictions_daily():
 async def _cleanup_notifications_daily():
     """Fire daily at 03:00 UTC."""
     while True:
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         next_run = now.replace(hour=3, minute=0, second=0, microsecond=0)
         if next_run <= now:
             next_run += timedelta(days=1)
@@ -86,7 +107,7 @@ async def _cleanup_notifications_daily():
             print("[scheduler] running: cleanup_notifications")
             from app.dependencies import supabase
             supabase.table("notifications").delete().lt(
-                "expires_at", datetime.utcnow().isoformat()
+                "expires_at", datetime.now(timezone.utc).isoformat()
             ).execute()
             print("[scheduler] cleaned up expired notifications")
         except asyncio.CancelledError:
@@ -98,7 +119,7 @@ async def _cleanup_notifications_daily():
 async def _generate_weekly_reports():
     """Fire every Monday at 06:00 UTC."""
     while True:
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         # Find next Monday
         days_until_monday = (7 - now.weekday()) % 7
         if days_until_monday == 0 and now.hour >= 6:

@@ -8,8 +8,8 @@ from app.services.llm import generate_daily_quiz_questions
 logger = logging.getLogger(__name__)
 
 
-async def get_or_create_daily_quiz():
-    today = date.today().isoformat()
+async def get_or_create_daily_quiz(target_date: str | None = None):
+    today = target_date or date.today().isoformat()
 
     existing = await db.get_daily_quiz_by_date(today)
     if existing:

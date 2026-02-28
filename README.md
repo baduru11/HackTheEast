@@ -108,12 +108,13 @@ HackTheEast/
 | **Styling** | Tailwind CSS 4, Framer Motion | Dark theme UI with animations |
 | **Charts** | Recharts 3 | Data visualization |
 | **Backend** | FastAPI 0.115, Uvicorn, Python 3.12 | Async REST API + WebSocket |
-| **Database** | Supabase (PostgreSQL) | Auth, storage, real-time |
+| **Authentication** | Supabase Auth | Google OAuth + email/password, JWT sessions |
+| **Database** | Supabase (PostgreSQL) | Storage, real-time, RPC functions |
 | **AI/LLM** | OpenRouter API (MiniMax M2.5) | Content generation & quiz creation |
 | **Market Data** | Finnhub API, Yahoo Finance | Stock quotes, financial news |
 | **News** | GNews API, RSS (feedparser) | Multi-source article ingestion |
 | **Scraping** | Trafilatura | Article body extraction |
-| **Deployment** | Railway (Docker) | Containerized backend |
+| **Deployment** | Vercel (frontend), Railway (backend) | Edge CDN + containerized API |
 
 ---
 

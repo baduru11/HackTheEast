@@ -1,7 +1,7 @@
 import asyncio
 import finnhub
 import httpx
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from app.config import settings
 
@@ -50,6 +50,9 @@ async def fetch_general_news() -> list[dict]:
                 url = item.get("url", "")
                 if not url or "finnhub.io" in url:
                     continue
+                ts = item.get("datetime", 0)
+                if not ts or ts <= 0:
+                    continue
                 articles.append({
                     "finnhub_id": str(item.get("id")),
                     "headline": item.get("headline", ""),
@@ -57,7 +60,7 @@ async def fetch_general_news() -> list[dict]:
                     "source_name": item.get("source", ""),
                     "original_url": item.get("url", ""),
                     "image_url": clean_image_url(item.get("image")),
-                    "published_at": datetime.fromtimestamp(item.get("datetime", 0)).isoformat(),
+                    "published_at": datetime.fromtimestamp(ts, tz=timezone.utc).isoformat(),
                     "category": category,
                 })
         except Exception as e:
@@ -68,7 +71,7 @@ async def fetch_general_news() -> list[dict]:
 async def fetch_company_news(ticker: str) -> list[dict]:
     """Fetch news for a specific company ticker."""
     loop = asyncio.get_event_loop()
-    today = datetime.utcnow().date()
+    today = datetime.now(timezone.utc).date()
     week_ago = today - timedelta(days=7)
     try:
         news = await loop.run_in_executor(None, lambda: client.company_news(ticker, _from=str(week_ago), to=str(today)))
@@ -79,6 +82,9 @@ async def fetch_company_news(ticker: str) -> list[dict]:
             url = item.get("url", "")
             if not url or "finnhub.io" in url:
                 continue
+            ts = item.get("datetime", 0)
+            if not ts or ts <= 0:
+                continue
             results.append({
                 "finnhub_id": str(item.get("id")),
                 "headline": item.get("headline", ""),
@@ -86,7 +92,7 @@ async def fetch_company_news(ticker: str) -> list[dict]:
                 "source_name": item.get("source", ""),
                 "original_url": url,
                 "image_url": clean_image_url(item.get("image")),
-                "published_at": datetime.fromtimestamp(item.get("datetime", 0)).isoformat(),
+                "published_at": datetime.fromtimestamp(ts, tz=timezone.utc).isoformat(),
                 "tickers": [ticker],
             })
             if len(results) >= 5:
@@ -113,13 +119,14 @@ async def fetch_quote(ticker: str) -> dict | None:
 
 
 async def fetch_all_news() -> list[dict]:
-    """Fetch news from all sources: general + top tickers."""
-    articles = await fetch_general_news()
-
-    for ticker in TOP_TICKERS:
-        company_articles = await fetch_company_news(ticker)
-        articles.extend(company_articles)
-
+    """Fetch news from all sources: general + top tickers in parallel."""
+    general, *company_results = await asyncio.gather(
+        fetch_general_news(),
+        *[fetch_company_news(ticker) for ticker in TOP_TICKERS],
+    )
+    articles = general
+    for result in company_results:
+        articles.extend(result)
     return articles
 
 
