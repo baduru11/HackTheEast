@@ -28,11 +28,12 @@ export default function OnboardingPage() {
   const { session, loading: authLoading } = useAuth();
   const router = useRouter();
   const [selected, setSelected] = useState<Set<number>>(new Set());
+  const [existing, setExisting] = useState<Set<number>>(new Set());
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [checking, setChecking] = useState(true);
 
-  // Skip onboarding if user already has favorites
+  // Pre-select existing favorites so user can add more
   useEffect(() => {
     if (authLoading || !session) {
       setChecking(false);
@@ -41,13 +42,14 @@ export default function OnboardingPage() {
     apiFetch<Favorite[]>("/favorites", { token: session.access_token })
       .then((res) => {
         if (res.success && res.data && res.data.length > 0) {
-          router.replace("/");
-        } else {
-          setChecking(false);
+          const ids = new Set(res.data.map((f) => f.sector_id));
+          setSelected(ids);
+          setExisting(new Set(ids));
         }
       })
-      .catch(() => setChecking(false));
-  }, [session, authLoading, router]);
+      .catch(() => {})
+      .finally(() => setChecking(false));
+  }, [session, authLoading]);
 
   if (checking) return null;
 
@@ -63,13 +65,27 @@ export default function OnboardingPage() {
     setSaving(true);
     setError("");
 
+    const toAdd = [...selected].filter((id) => !existing.has(id));
+    const toRemove = [...existing].filter((id) => !selected.has(id));
+
     let failed = 0;
-    for (const sectorId of selected) {
+    for (const sectorId of toAdd) {
       try {
         const res = await apiFetch("/favorites", {
           method: "POST",
           token: session?.access_token,
           body: JSON.stringify({ sector_id: sectorId }),
+        });
+        if (!res.success) failed++;
+      } catch {
+        failed++;
+      }
+    }
+    for (const sectorId of toRemove) {
+      try {
+        const res = await apiFetch(`/favorites/${sectorId}`, {
+          method: "DELETE",
+          token: session?.access_token,
         });
         if (!res.success) failed++;
       } catch {
