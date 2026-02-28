@@ -1,10 +1,13 @@
 import asyncio
 import re
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from html import unescape
 
 import feedparser
 import httpx
+
+_feed_executor = ThreadPoolExecutor(max_workers=4)
 
 RSS_SOURCES = [
     # General finance & markets
@@ -105,7 +108,8 @@ async def fetch_single_feed(source: dict) -> list[dict]:
             resp = await client.get(source["url"], headers=headers)
             resp.raise_for_status()
 
-        feed = feedparser.parse(resp.text)
+        loop = asyncio.get_running_loop()
+        feed = await loop.run_in_executor(_feed_executor, feedparser.parse, resp.text)
 
         for entry in feed.entries[:MAX_ARTICLES_PER_FEED]:
             link = entry.get("link", "")

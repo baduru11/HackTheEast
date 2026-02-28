@@ -66,7 +66,7 @@ async def scrape_article(url: str) -> dict | None:
 
         final_url = str(response.url)
 
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         extracted = await loop.run_in_executor(executor, _extract_article, html)
 
         # Attach og:image even if trafilatura didn't find one
