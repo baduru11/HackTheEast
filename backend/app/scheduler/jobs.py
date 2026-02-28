@@ -4,7 +4,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 
-from app.services.pipeline import ingest_finnhub, ingest_gnews, process_pending_articles, recover_stuck_articles
+from app.services.pipeline import ingest_finnhub, ingest_gnews, ingest_rss, process_pending_articles, recover_stuck_articles
 from app.services.gauge import process_gauge_decay
 from app.services.xp import award_passive_xp
 from app.db.supabase import refresh_leaderboards
@@ -33,6 +33,11 @@ async def process_pending_job():
     await process_pending_articles(batch_size=5)
 
 
+async def rss_ingest_job():
+    """Ingest articles from free RSS feeds."""
+    await ingest_rss()
+
+
 async def finnhub_adaptive_job():
     """Adaptively poll Finnhub based on market hours."""
     await ingest_finnhub()
@@ -52,6 +57,15 @@ def setup_scheduler():
         IntervalTrigger(minutes=15),
         id="finnhub_poll",
         name="Finnhub adaptive news poll",
+        replace_existing=True,
+    )
+
+    # RSS feeds every 30 minutes (free, no rate limits)
+    scheduler.add_job(
+        rss_ingest_job,
+        IntervalTrigger(minutes=30),
+        id="rss_poll",
+        name="RSS free news feeds poll",
         replace_existing=True,
     )
 

@@ -14,6 +14,8 @@ TOP_TICKERS = [
 
 NEWS_CATEGORIES = ["general", "forex", "crypto", "merger"]
 
+PAYWALLED_SOURCES = {"MarketWatch", "SeekingAlpha", "Bloomberg", "Barron's", "WSJ", "Financial Times"}
+
 
 async def fetch_general_news() -> list[dict]:
     """Fetch general market news from all categories."""
@@ -22,6 +24,8 @@ async def fetch_general_news() -> list[dict]:
         try:
             news = client.general_news(category, min_id=0)
             for item in news:
+                if item.get("source", "") in PAYWALLED_SOURCES:
+                    continue
                 articles.append({
                     "finnhub_id": str(item.get("id")),
                     "headline": item.get("headline", ""),
@@ -54,7 +58,8 @@ async def fetch_company_news(ticker: str) -> list[dict]:
                 "published_at": datetime.fromtimestamp(item.get("datetime", 0)).isoformat(),
                 "tickers": [ticker],
             }
-            for item in news[:5]  # Limit to 5 most recent per ticker
+            for item in news[:5]
+            if item.get("source", "") not in PAYWALLED_SOURCES
         ]
     except Exception as e:
         print(f"Finnhub company_news error ({ticker}): {e}")

@@ -1,7 +1,7 @@
 import asyncio
 
 from app.db import supabase as db
-from app.services import finnhub, gnews, scraper, llm
+from app.services import finnhub, gnews, rss_feeds, scraper, llm
 
 
 async def ingest_finnhub():
@@ -67,6 +67,31 @@ async def ingest_gnews():
         saved_count += 1
 
     print(f"GNews ingestion: {saved_count} new articles saved")
+    return saved_count
+
+
+async def ingest_rss():
+    """Full RSS ingestion cycle: fetch all feeds, deduplicate, save."""
+    articles = await rss_feeds.fetch_all_rss_feeds()
+    saved_count = 0
+
+    for article in articles:
+        if await db.article_exists(original_url=article.get("original_url")):
+            continue
+
+        await db.insert_article({
+            "source_name": article.get("source_name", ""),
+            "headline": article.get("headline", ""),
+            "snippet": article.get("snippet"),
+            "original_url": article.get("original_url", ""),
+            "image_url": article.get("image_url"),
+            "published_at": article.get("published_at"),
+            "processing_status": "pending",
+        })
+
+        saved_count += 1
+
+    print(f"RSS ingestion: {saved_count} new articles saved")
     return saved_count
 
 

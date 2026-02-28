@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, Query
 
 from app.db import supabase as db
 from app.dependencies import get_current_user
@@ -86,22 +86,24 @@ async def debug_process():
 
 
 @router.get("/debug/bulk")
-async def debug_bulk():
-    """Process all pending articles in batches of 100."""
+async def debug_bulk(background_tasks: BackgroundTasks):
+    """Kick off bulk processing in the background (batch_size=3)."""
+    background_tasks.add_task(_bulk_process)
+    _, pending_count = await db.get_articles(status="pending", page=1, limit=1)
+    return {"status": "started", "pending": pending_count or 0}
+
+
+async def _bulk_process():
     from app.services.pipeline import process_pending_articles, recover_stuck_articles
     await recover_stuck_articles()
-
     rounds = 0
     while True:
         articles, _ = await db.get_articles(status="pending", page=1, limit=1)
         if not articles:
             break
-        await process_pending_articles(batch_size=100)
+        await process_pending_articles(batch_size=3)
         rounds += 1
-
-    _, done_count = await db.get_articles(status="done", page=1, limit=1)
-    _, failed_count = await db.get_articles(status="failed", page=1, limit=1)
-    return {"rounds": rounds, "total_done": done_count or 0, "total_failed": failed_count or 0}
+    print(f"Bulk processing done: {rounds} rounds")
 
 
 @router.get("/{article_id}")
