@@ -1,7 +1,59 @@
 import asyncio
+from urllib.parse import urlparse
+
+import httpx
 
 from app.db import supabase as db
 from app.services import finnhub, gnews, rss_feeds, scraper, llm
+
+DOMAIN_TO_SOURCE = {
+    "fool.com": "Motley Fool",
+    "benzinga.com": "Benzinga",
+    "investorplace.com": "InvestorPlace",
+    "barrons.com": "Barron's",
+    "wsj.com": "WSJ",
+    "ft.com": "Financial Times",
+    "bloomberg.com": "Bloomberg",
+    "reuters.com": "Reuters",
+    "cnbc.com": "CNBC",
+    "bbc.co.uk": "BBC",
+    "bbc.com": "BBC",
+    "theguardian.com": "The Guardian",
+    "apnews.com": "AP News",
+    "businessinsider.com": "Business Insider",
+    "techcrunch.com": "TechCrunch",
+    "cointelegraph.com": "Cointelegraph",
+    "coindesk.com": "CoinDesk",
+    "marketwatch.com": "MarketWatch",
+    "seekingalpha.com": "SeekingAlpha",
+    "investing.com": "Investing.com",
+    "thestreet.com": "TheStreet",
+    "nytimes.com": "NY Times",
+}
+
+
+def _source_from_domain(url: str) -> str | None:
+    """Extract a friendly source name from a URL's domain."""
+    try:
+        host = urlparse(url).hostname or ""
+        host = host.lower().removeprefix("www.")
+        for domain, name in DOMAIN_TO_SOURCE.items():
+            if host == domain or host.endswith("." + domain):
+                return name
+    except Exception:
+        pass
+    return None
+
+
+async def resolve_url(url: str) -> tuple[str, str | None]:
+    """Follow redirects and return (final_url, source_name_or_None)."""
+    try:
+        async with httpx.AsyncClient(timeout=10, follow_redirects=True) as client:
+            resp = await client.head(url)
+            final = str(resp.url)
+            return final, _source_from_domain(final)
+    except Exception:
+        return url, None
 
 
 async def ingest_finnhub():
@@ -117,9 +169,21 @@ async def _process_single_article(article: dict) -> bool:
     """Process a single article. Returns True on success, False on failure."""
     article_id = article["id"]
     try:
+        # Step 0: Resolve redirects to get real URL and source name
+        original_url = article["original_url"]
+        final_url, real_source = await resolve_url(original_url)
+
+        updates = {}
+        if final_url != original_url:
+            updates["original_url"] = final_url
+        if real_source and real_source != article.get("source_name"):
+            updates["source_name"] = real_source
+        if updates:
+            await db.update_article(article_id, updates)
+
         # Step 1: Scrape
         await db.update_article(article_id, {"processing_status": "scraping"})
-        scraped = await scraper.scrape_article(article["original_url"])
+        scraped = await scraper.scrape_article(final_url)
 
         raw_text = scraped.get("text", "") if scraped else ""
         og_image = scraped.get("image") if scraped else None

@@ -30,7 +30,7 @@ scheduler = AsyncIOScheduler()
 async def process_pending_job():
     """Proper async wrapper for processing pending articles."""
     await recover_stuck_articles()
-    await process_pending_articles(batch_size=5)
+    await process_pending_articles(batch_size=15)
 
 
 async def rss_ingest_job():
