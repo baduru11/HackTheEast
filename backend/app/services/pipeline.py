@@ -169,25 +169,22 @@ async def _process_single_article(article: dict) -> bool:
     """Process a single article. Returns True on success, False on failure."""
     article_id = article["id"]
     try:
-        # Step 0: Resolve redirects to get real URL and source name
-        original_url = article["original_url"]
-        final_url, real_source = await resolve_url(original_url)
-
-        updates = {}
-        if final_url != original_url:
-            updates["original_url"] = final_url
-        if real_source and real_source != article.get("source_name"):
-            updates["source_name"] = real_source
-        if updates:
-            await db.update_article(article_id, updates)
-
-        # Step 1: Scrape
+        # Step 1: Scrape (follows redirects, returns final_url)
         await db.update_article(article_id, {"processing_status": "scraping"})
-        scraped = await scraper.scrape_article(final_url)
+        scraped = await scraper.scrape_article(article["original_url"])
 
         raw_text = scraped.get("text", "") if scraped else ""
         og_image = scraped.get("image") if scraped else None
         author = scraped.get("author") if scraped else None
+        final_url = scraped.get("final_url") if scraped else None
+
+        # Update URL and source name if redirect resolved to a different domain
+        if final_url and final_url != article["original_url"]:
+            real_source = _source_from_domain(final_url)
+            updates = {"original_url": final_url}
+            if real_source:
+                updates["source_name"] = real_source
+            await db.update_article(article_id, updates)
 
         # Update image if we got a better one from og:image
         if og_image and og_image != article.get("image_url"):

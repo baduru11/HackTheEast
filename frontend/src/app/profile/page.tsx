@@ -30,17 +30,19 @@ export default function ProfilePage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (authLoading) return;
     if (!session) {
       setLoading(false);
       return;
     }
+    setLoading(true);
     apiFetch<DashboardData>("/profile", { token: session.access_token })
       .then((res) => {
         if (res.success && res.data) setData(res.data);
       })
       .catch(console.error)
       .finally(() => setLoading(false));
-  }, [session]);
+  }, [session, authLoading]);
 
   if (authLoading || loading) {
     return (

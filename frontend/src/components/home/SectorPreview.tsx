@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { Article } from "@/types";
+import SectorTags from "@/components/shared/SectorTags";
 
 function timeAgo(date: string | null): string {
   if (!date) return "";
@@ -39,8 +40,9 @@ export default function SectorPreview({ title, href, articles }: SectorPreviewPr
               <p className="text-sm text-gray-200 font-medium line-clamp-2 group-hover:text-teal-400 transition-colors">
                 {article.headline}
               </p>
-              <p className="text-xs text-gray-500 mt-0.5">
-                {article.source_name} · {timeAgo(article.published_at)}
+              <p className="text-xs text-gray-500 mt-0.5 flex items-center gap-1.5 flex-wrap">
+                <span>{article.source_name} · {timeAgo(article.published_at)}</span>
+                <SectorTags article={article} max={1} />
               </p>
             </div>
           </Link>

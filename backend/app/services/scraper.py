@@ -57,6 +57,8 @@ async def scrape_article(url: str) -> dict | None:
             response.raise_for_status()
             html = response.text
 
+        final_url = str(response.url)
+
         loop = asyncio.get_event_loop()
         extracted = await loop.run_in_executor(executor, _extract_article, html)
 
@@ -67,8 +69,9 @@ async def scrape_article(url: str) -> dict | None:
         # If extraction failed entirely, return minimal data with og:image
         if not extracted:
             og_image = _extract_og_image(html)
-            return {"text": None, "image": og_image}
+            return {"text": None, "image": og_image, "final_url": final_url}
 
+        extracted["final_url"] = final_url
         return extracted
     except Exception as e:
         print(f"Scraper error ({url}): {e}")

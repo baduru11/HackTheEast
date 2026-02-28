@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { Article } from "@/types";
+import SectorTags from "@/components/shared/SectorTags";
 
 function timeAgo(date: string | null): string {
   if (!date) return "";
@@ -30,10 +31,11 @@ export default function ArticleCard({ article }: { article: Article }) {
         {article.snippet && (
           <p className="text-xs text-gray-400 mt-1 line-clamp-2">{article.snippet}</p>
         )}
-        <div className="flex items-center gap-2 text-xs text-gray-500 mt-2">
+        <div className="flex items-center gap-2 text-xs text-gray-500 mt-2 flex-wrap">
           <span>{article.source_name}</span>
           <span>·</span>
           <span>{timeAgo(article.published_at)}</span>
+          <SectorTags article={article} max={2} />
         </div>
       </div>
     </Link>
