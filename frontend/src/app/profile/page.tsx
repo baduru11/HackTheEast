@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useAuth } from "@/hooks/useAuth";
 import { apiFetch } from "@/lib/api";
 import GaugeMeter from "@/components/profile/GaugeMeter";
+import WeeklyReports from "@/components/profile/WeeklyReports";
 import { FadeInUp, StaggerList, StaggerItem } from "@/components/shared/MotionWrappers";
 
 interface DashboardData {
@@ -219,6 +220,10 @@ export default function ProfilePage() {
             ))}
           </StaggerList>
         )}
+
+        {/* Weekly Reports */}
+        <h2 id="weekly-reports" className="text-lg font-bold text-white mb-4 mt-8">Weekly Reports</h2>
+        <WeeklyReports token={session.access_token} />
       </div>
     </FadeInUp>
   );
