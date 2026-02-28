@@ -7,7 +7,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { FadeInUp } from "@/components/shared/MotionWrappers";
 import type { DailyQuiz, DailyQuizResult, DailyQuizExplanation } from "@/types";
 
-/* ── ScoreRing (copied from article quiz page) ── */
+/* ── ScoreRing ── */
 function ScoreRing({ score, total }: { score: number; total: number }) {
   const pct = total > 0 ? score / total : 0;
   const radius = 54;
@@ -41,7 +41,7 @@ export default function DailyQuizPage() {
   const { user, session, loading: authLoading } = useAuth();
   const reduced = useReducedMotion();
 
-  /* data state */
+  /* data */
   const [quiz, setQuiz] = useState<DailyQuiz | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -49,19 +49,19 @@ export default function DailyQuizPage() {
   /* quiz-play state */
   const [current, setCurrent] = useState(0);
   const [selected, setSelected] = useState<number | null>(null);
-  const [confirmed, setConfirmed] = useState(false); // answer confirmed for current Q
-  const [answers, setAnswers] = useState<number[]>([]); // accumulated confirmed answers
-  const [direction, setDirection] = useState(1);
+  const [confirmed, setConfirmed] = useState(false);
+  const [answers, setAnswers] = useState<number[]>([]);
 
-  /* result state */
+  /* phase: 'quiz' → 'review' → 'summary' */
+  const [phase, setPhase] = useState<"quiz" | "review" | "summary">("quiz");
+  const [reviewIdx, setReviewIdx] = useState(0);
+
+  /* result */
   const [result, setResult] = useState<DailyQuizResult | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [alreadyCompleted, setAlreadyCompleted] = useState(false);
 
-  /* whether we've transitioned to the final results screen */
-  const [showResults, setShowResults] = useState(false);
-
-  /* ── Fetch quiz on mount ── */
+  /* ── Fetch quiz ── */
   useEffect(() => {
     fetch("/api/v1/daily-quiz/today")
       .then((r) => r.json())
@@ -171,7 +171,6 @@ export default function DailyQuizPage() {
   const total = questions.length;
 
   /* ── Handlers ── */
-
   const handleSelect = (idx: number) => {
     if (confirmed) return;
     setSelected(idx);
@@ -180,12 +179,9 @@ export default function DailyQuizPage() {
   const handleConfirm = () => {
     if (selected === null || confirmed) return;
     setConfirmed(true);
-
-    // Record this answer
     const newAnswers = [...answers, selected];
     setAnswers(newAnswers);
 
-    // If this is the last question, submit immediately so we can show explanation inline
     if (current >= total - 1) {
       submitQuiz(newAnswers);
     }
@@ -195,15 +191,7 @@ export default function DailyQuizPage() {
     if (!confirmed) return;
     setSelected(null);
     setConfirmed(false);
-    setDirection(1);
     setCurrent(current + 1);
-  };
-
-  const handleSeeResults = () => {
-    // result is already available from submit triggered in handleConfirm
-    // Transition to the results view
-    setConfirmed(false);
-    setShowResults(true);
   };
 
   const submitQuiz = async (finalAnswers: number[]) => {
@@ -220,6 +208,8 @@ export default function DailyQuizPage() {
       const data = await res.json();
       if (data.success) {
         setResult(data.data);
+        setReviewIdx(0);
+        setPhase("review");
       } else if (data.error?.code === "QUIZ_ALREADY_COMPLETED") {
         setAlreadyCompleted(true);
       } else {
@@ -262,15 +252,130 @@ export default function DailyQuizPage() {
     );
   }
 
-  /* ── Results view ── */
-  if (result && showResults) {
+  /* ── Review phase: step through per-question feedback ── */
+  if (phase === "review" && result) {
+    const fb: DailyQuizExplanation = result.explanations[reviewIdx];
+    const q = questions[reviewIdx];
+    const isLastReview = reviewIdx >= total - 1;
+
+    return (
+      <FadeInUp>
+        <div className="max-w-2xl mx-auto px-4 py-8">
+          {/* Header */}
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <span className="text-[10px] font-semibold text-teal-400 uppercase tracking-widest">Review</span>
+              <h1 className="text-lg font-bold text-white mt-0.5">
+                Question {reviewIdx + 1} of {total}
+              </h1>
+            </div>
+            <span className="text-sm text-gray-500">{result.score}/{result.total_questions} correct</span>
+          </div>
+
+          {/* Progress */}
+          <div className="mb-6">
+            <div className="h-1.5 bg-gray-800 rounded-full overflow-hidden">
+              <div
+                className="h-full rounded-full transition-all duration-500"
+                style={{
+                  width: `${((reviewIdx + 1) / total) * 100}%`,
+                  background: "linear-gradient(90deg, #14b8a6, #2dd4bf)",
+                  boxShadow: "0 0 8px rgba(45, 212, 191, 0.4)",
+                }}
+              />
+            </div>
+          </div>
+
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={reviewIdx}
+              initial={{ x: 80, opacity: 0 }}
+              animate={{ x: 0, opacity: 1 }}
+              exit={{ x: -80, opacity: 0 }}
+              transition={{ duration: 0.25, ease: "easeInOut" }}
+            >
+              <h2 className="text-lg font-semibold text-white mb-4">{q.question_text}</h2>
+
+              <div className="space-y-3 mb-4">
+                {q.options.map((option: string, idx: number) => {
+                  let cls = "border-gray-800 bg-gray-900/60 text-gray-500";
+                  if (idx === fb.correct_answer) cls = "border-green-500 bg-green-500/10 text-green-300";
+                  else if (idx === fb.your_answer && !fb.is_correct) cls = "border-red-500 bg-red-500/10 text-red-300";
+
+                  return (
+                    <div key={idx} className={`w-full p-4 rounded-lg border flex items-center justify-between gap-3 ${cls}`}>
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="text-sm font-medium text-gray-500 flex-shrink-0">{String.fromCharCode(65 + idx)}.</span>
+                        <span className="text-sm">{option}</span>
+                      </div>
+                      {idx === fb.correct_answer && (
+                        <span className="text-[11px] font-semibold text-green-400 flex-shrink-0">Correct</span>
+                      )}
+                      {idx === fb.your_answer && !fb.is_correct && (
+                        <span className="text-[11px] font-semibold text-red-400 flex-shrink-0">Your answer</span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Explanation */}
+              <div className={`p-4 rounded-xl border mb-6 ${
+                fb.is_correct ? "border-green-800/50 bg-green-950/20" : "border-red-800/50 bg-red-950/20"
+              }`}>
+                <div className="flex items-start gap-2.5">
+                  <div className={`w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 ${
+                    fb.is_correct ? "bg-green-500/20" : "bg-red-500/20"
+                  }`}>
+                    {fb.is_correct ? (
+                      <svg className="w-3 h-3 text-green-400" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                      </svg>
+                    ) : (
+                      <svg className="w-3 h-3 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                      </svg>
+                    )}
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-white">
+                      {fb.is_correct ? "Correct!" : `Incorrect — correct answer: ${String.fromCharCode(65 + fb.correct_answer)}`}
+                    </p>
+                    <p className="text-xs text-gray-400 mt-1">{fb.explanation}</p>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          </AnimatePresence>
+
+          {isLastReview ? (
+            <button
+              onClick={() => setPhase("summary")}
+              className="w-full bg-teal-500 hover:bg-teal-400 text-white font-medium py-3 rounded-lg transition-colors"
+            >
+              See Results
+            </button>
+          ) : (
+            <button
+              onClick={() => setReviewIdx(reviewIdx + 1)}
+              className="w-full bg-teal-500 hover:bg-teal-400 text-white font-medium py-3 rounded-lg transition-colors"
+            >
+              Next Question
+            </button>
+          )}
+        </div>
+      </FadeInUp>
+    );
+  }
+
+  /* ── Summary view ── */
+  if (phase === "summary" && result) {
     const pct = result.total_questions > 0 ? result.score / result.total_questions : 0;
     const message = pct >= 0.8 ? "Excellent work!" : pct >= 0.5 ? "Good effort!" : "Keep learning!";
 
     return (
       <FadeInUp>
         <div className="max-w-2xl mx-auto px-4 py-8">
-          {/* Score card */}
           <div className="glass rounded-2xl p-8 mb-8 glow-teal-sm text-center">
             {reduced ? (
               <ScoreRing score={result.score} total={result.total_questions} />
@@ -298,7 +403,6 @@ export default function DailyQuizPage() {
             <p className="text-xs text-gray-500 mt-4">Come back tomorrow for a new quiz!</p>
           </div>
 
-          {/* Explanations */}
           <h3 className="text-sm font-medium text-gray-400 mb-3">Review answers</h3>
           <div className="space-y-3">
             {result.explanations.map((fb: DailyQuizExplanation, i: number) => (
@@ -338,7 +442,6 @@ export default function DailyQuizPage() {
             ))}
           </div>
 
-          {/* Back button */}
           <div className="mt-8 text-center">
             <Link
               href="/"
@@ -355,8 +458,8 @@ export default function DailyQuizPage() {
     );
   }
 
-  /* ── Submitting state (only show full-page spinner if not on the last question with inline feedback) ── */
-  if (submitting && !confirmed) {
+  /* ── Grading spinner (last question confirmed, waiting for result) ── */
+  if (submitting) {
     return (
       <FadeInUp>
         <div className="max-w-2xl mx-auto px-4 py-24 text-center">
@@ -372,20 +475,15 @@ export default function DailyQuizPage() {
     );
   }
 
-  /* ── Question view ── */
+  /* ── Quiz phase ── */
   const question = questions[current];
   const isLastQuestion = current >= total - 1;
 
   const questionVariants = {
-    enter: (dir: number) => ({ x: dir > 0 ? 80 : -80, opacity: 0 }),
+    enter: () => ({ x: 80, opacity: 0 }),
     center: { x: 0, opacity: 1 },
-    exit: (dir: number) => ({ x: dir > 0 ? -80 : 80, opacity: 0 }),
+    exit: () => ({ x: -80, opacity: 0 }),
   };
-
-  // Get the current explanation from the result if available (for last question inline feedback)
-  const currentExplanation = confirmed && result
-    ? result.explanations[current]
-    : null;
 
   return (
     <FadeInUp>
@@ -426,31 +524,16 @@ export default function DailyQuizPage() {
         </div>
 
         {/* Question */}
-        <AnimatePresence mode="wait" custom={direction}>
+        <AnimatePresence mode="wait">
           {reduced ? (
             <div key={current}>
               <h2 className="text-lg font-semibold text-white mb-6">{question.question_text}</h2>
               <div className="space-y-3 mb-4">
                 {question.options.map((option: string, idx: number) => {
-                  let optionClasses =
-                    "border-gray-800 bg-gray-900 text-gray-300 hover:border-gray-700";
-
-                  if (confirmed && currentExplanation) {
-                    // After confirming on last question (with server result)
-                    if (idx === currentExplanation.correct_answer) {
-                      optionClasses = "border-green-500 bg-green-500/10 text-green-400";
-                    } else if (idx === selected && !currentExplanation.is_correct) {
-                      optionClasses = "border-red-500 bg-red-500/10 text-red-400";
-                    } else {
-                      optionClasses = "border-gray-800 bg-gray-900 text-gray-500";
-                    }
-                  } else if (confirmed) {
-                    // Confirmed on non-last question (no server data yet)
-                    if (idx === selected) {
-                      optionClasses = "border-teal-400 bg-teal-400/10 text-white";
-                    } else {
-                      optionClasses = "border-gray-800 bg-gray-900 text-gray-500";
-                    }
+                  let optionClasses = "border-gray-800 bg-gray-900 text-gray-300 hover:border-gray-700";
+                  if (confirmed) {
+                    if (idx === selected) optionClasses = "border-teal-400 bg-teal-400/10 text-white";
+                    else optionClasses = "border-gray-800 bg-gray-900 text-gray-500";
                   } else if (selected === idx) {
                     optionClasses = "border-teal-400 bg-teal-400/10 text-white";
                   }
@@ -470,44 +553,10 @@ export default function DailyQuizPage() {
                   );
                 })}
               </div>
-
-              {/* Inline explanation (reduced motion) */}
-              {confirmed && currentExplanation && (
-                <div
-                  className={`p-4 rounded-xl border mb-6 ${
-                    currentExplanation.is_correct
-                      ? "border-green-800/50 bg-green-950/20"
-                      : "border-red-800/50 bg-red-950/20"
-                  }`}
-                >
-                  <div className="flex items-start gap-2.5">
-                    <div className={`w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 ${
-                      currentExplanation.is_correct ? "bg-green-500/20" : "bg-red-500/20"
-                    }`}>
-                      {currentExplanation.is_correct ? (
-                        <svg className="w-3 h-3 text-green-400" viewBox="0 0 20 20" fill="currentColor">
-                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                        </svg>
-                      ) : (
-                        <svg className="w-3 h-3 text-red-400" viewBox="0 0 20 20" fill="currentColor">
-                          <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-                        </svg>
-                      )}
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-white">
-                        {currentExplanation.is_correct ? "Correct!" : "Incorrect"}
-                      </p>
-                      <p className="text-xs text-gray-400 mt-1">{currentExplanation.explanation}</p>
-                    </div>
-                  </div>
-                </div>
-              )}
             </div>
           ) : (
             <motion.div
               key={current}
-              custom={direction}
               variants={questionVariants}
               initial="enter"
               animate="center"
@@ -517,23 +566,10 @@ export default function DailyQuizPage() {
               <h2 className="text-lg font-semibold text-white mb-6">{question.question_text}</h2>
               <div className="space-y-3 mb-4">
                 {question.options.map((option: string, idx: number) => {
-                  let optionClasses =
-                    "border-gray-800 bg-gray-900 text-gray-300 hover:border-gray-700";
-
-                  if (confirmed && currentExplanation) {
-                    if (idx === currentExplanation.correct_answer) {
-                      optionClasses = "border-green-500 bg-green-500/10 text-green-400";
-                    } else if (idx === selected && !currentExplanation.is_correct) {
-                      optionClasses = "border-red-500 bg-red-500/10 text-red-400";
-                    } else {
-                      optionClasses = "border-gray-800 bg-gray-900 text-gray-500";
-                    }
-                  } else if (confirmed) {
-                    if (idx === selected) {
-                      optionClasses = "border-teal-400 bg-teal-400/10 text-white";
-                    } else {
-                      optionClasses = "border-gray-800 bg-gray-900 text-gray-500";
-                    }
+                  let optionClasses = "border-gray-800 bg-gray-900 text-gray-300 hover:border-gray-700";
+                  if (confirmed) {
+                    if (idx === selected) optionClasses = "border-teal-400 bg-teal-400/10 text-white";
+                    else optionClasses = "border-gray-800 bg-gray-900 text-gray-500";
                   } else if (selected === idx) {
                     optionClasses = "border-teal-400 bg-teal-400/10 text-white";
                   }
@@ -553,42 +589,6 @@ export default function DailyQuizPage() {
                   );
                 })}
               </div>
-
-              {/* Inline explanation after confirm (last question only, since we have server data) */}
-              {confirmed && currentExplanation && (
-                <motion.div
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.3 }}
-                  className={`p-4 rounded-xl border mb-6 ${
-                    currentExplanation.is_correct
-                      ? "border-green-800/50 bg-green-950/20"
-                      : "border-red-800/50 bg-red-950/20"
-                  }`}
-                >
-                  <div className="flex items-start gap-2.5">
-                    <div className={`w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 ${
-                      currentExplanation.is_correct ? "bg-green-500/20" : "bg-red-500/20"
-                    }`}>
-                      {currentExplanation.is_correct ? (
-                        <svg className="w-3 h-3 text-green-400" viewBox="0 0 20 20" fill="currentColor">
-                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                        </svg>
-                      ) : (
-                        <svg className="w-3 h-3 text-red-400" viewBox="0 0 20 20" fill="currentColor">
-                          <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-                        </svg>
-                      )}
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-white">
-                        {currentExplanation.is_correct ? "Correct!" : "Incorrect"}
-                      </p>
-                      <p className="text-xs text-gray-400 mt-1">{currentExplanation.explanation}</p>
-                    </div>
-                  </div>
-                </motion.div>
-              )}
             </motion.div>
           )}
         </AnimatePresence>
@@ -602,20 +602,19 @@ export default function DailyQuizPage() {
           >
             Confirm Answer
           </button>
-        ) : isLastQuestion ? (
-          <button
-            onClick={handleSeeResults}
-            disabled={submitting}
-            className="w-full bg-teal-500 hover:bg-teal-400 text-white font-medium py-3 rounded-lg transition-colors disabled:opacity-50"
-          >
-            {submitting ? "Grading..." : "See Results"}
-          </button>
-        ) : (
+        ) : !isLastQuestion ? (
           <button
             onClick={handleNext}
             className="w-full bg-teal-500 hover:bg-teal-400 text-white font-medium py-3 rounded-lg transition-colors"
           >
             Next Question
+          </button>
+        ) : (
+          <button
+            disabled
+            className="w-full bg-teal-500/50 text-white font-medium py-3 rounded-lg cursor-not-allowed"
+          >
+            Grading...
           </button>
         )}
       </div>

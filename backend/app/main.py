@@ -46,4 +46,18 @@ app.include_router(predict.router)
 
 @app.get("/api/v1/health")
 async def health():
-    return {"status": "ok"}
+    from app.scheduler.jobs import scheduler
+    jobs = [
+        {"id": j.id, "name": j.name, "next_run": str(j.next_run_time)}
+        for j in scheduler.get_jobs()
+    ]
+    return {"status": "ok", "scheduler_running": scheduler.running, "jobs": jobs}
+
+
+@app.post("/api/v1/health/trigger-ingest")
+async def trigger_ingest():
+    """Manually trigger one ingestion cycle — for debugging."""
+    from app.services.pipeline import ingest_rss, process_pending_articles
+    await ingest_rss()
+    processed = await process_pending_articles(batch_size=5)
+    return {"status": "ok", "triggered": True}

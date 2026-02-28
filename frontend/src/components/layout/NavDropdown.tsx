@@ -43,7 +43,7 @@ export default function NavDropdown({ label, items, basePath }: NavDropdownProps
 
       <AnimatePresence>
         {open && (
-          <DropdownMotion className="absolute top-full left-0 mt-2 w-44 glass rounded-xl shadow-xl py-1 z-50">
+          <DropdownMotion className="absolute top-full left-0 mt-2 w-44 bg-[#0f1420] border border-white/[0.08] rounded-xl shadow-2xl shadow-black/50 py-1 z-50">
             {items.map((item) => (
               <Link
                 key={item.slug}

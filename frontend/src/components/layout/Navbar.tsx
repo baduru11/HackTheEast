@@ -52,18 +52,6 @@ export default function Navbar() {
               Feed
             </Link>
             <Link
-              href="/social"
-              className="text-gray-300 hover:text-teal-400 transition-colors text-sm font-medium"
-            >
-              Social
-            </Link>
-            <Link
-              href="/leaderboard"
-              className="text-gray-300 hover:text-teal-400 transition-colors text-sm font-medium"
-            >
-              Leaderboard
-            </Link>
-            <Link
               href="/daily-quiz"
               className="text-gray-300 hover:text-teal-400 transition-colors text-sm font-medium"
             >
@@ -79,6 +67,18 @@ export default function Navbar() {
         </div>
 
         <div className="hidden md:flex items-center gap-4">
+          <Link
+            href="/social"
+            className="text-gray-300 hover:text-teal-400 transition-colors text-sm font-medium"
+          >
+            Social
+          </Link>
+          <Link
+            href="/leaderboard"
+            className="text-gray-300 hover:text-teal-400 transition-colors text-sm font-medium"
+          >
+            Leaderboard
+          </Link>
           <NotificationBell />
           {!loading && (
             user ? (
