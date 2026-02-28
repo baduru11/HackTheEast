@@ -9,11 +9,17 @@
 </p>
 
 <p align="center">
+  <em>Built by <strong>Team Mental</strong> for the <a href="https://hacktheeast.com">Hack The East</a> hackathon</em>
+</p>
+
+<p align="center">
   <a href="#architecture">Architecture</a> &bull;
   <a href="#tech-stack">Tech Stack</a> &bull;
   <a href="#features">Features</a> &bull;
   <a href="#database-schema">Database</a> &bull;
   <a href="#api-reference">API</a> &bull;
+  <a href="#scalability">Scalability</a> &bull;
+  <a href="#business-model">Business Model</a> &bull;
   <a href="#getting-started">Getting Started</a> &bull;
   <a href="#deployment">Deployment</a>
 </p>
@@ -128,9 +134,66 @@ HackTheEast/
 
 ### Gamification
 - **XP progression** &mdash; Earned through quizzes, daily challenges, predictions, and passive engagement
-- **Sector gauges** &mdash; Skill score (0-100) per favorited sector with decay mechanics
-- **Streaks** &mdash; Consecutive daily activity tracking with milestone bonuses (+25 at 7 days, +100 at 30)
+- **Sector gauges** &mdash; Skill score (0-100) per favorited sector ([details below](#sector-gauge-mechanics))
+- **Streaks** &mdash; Consecutive daily activity tracking with milestone bonuses (+25 XP at 7 days, +100 XP at 30)
 - **Leaderboards** &mdash; Global, weekly, monthly, by sector, and friends-only views (materialized views)
+
+### Sector Gauge Mechanics
+
+The gauge is FinaMeter's core feedback loop &mdash; a per-sector skill score from 0 to 100 that reflects how actively and accurately a user is learning within a financial domain.
+
+```
+    GAUGE LIFECYCLE
+
+    User favorites a sector
+            |
+            v
+    Gauge starts at 50
+            |
+     +------+------+
+     |             |
+  QUIZZES       INACTIVITY
+  (gain)         (decay)
+     |             |
+     v             v
+  +5 to +15    -5 to -15
+  per quiz     every 30 min
+     |             |
+     +------+------+
+            |
+            v
+    Clamped [20 .. 100]
+            |
+     Gauge = 100 ?
+       +2 XP / 10 min (passive reward)
+```
+
+**Gain** &mdash; completing a quiz in that sector raises the gauge:
+
+| Quiz Score | Gauge Points |
+|-----------|-------------|
+| Perfect (all correct) | +15 |
+| Missed 1 | +12 |
+| Missed 2 | +9 |
+| Missed 3+ | +5 |
+
+**Decay** &mdash; unread articles in a sector trigger automatic decay every 30 minutes:
+
+| Pending Articles (last 24h) | Decay | Weekend |
+|-----------------------------|-------|---------|
+| 6+ unread | -15 | -7 |
+| 4-5 unread | -10 | -5 |
+| 2-3 unread | -5 | -2 |
+| 0-1 unread | 0 | 0 |
+
+Gauge never drops below **20** (floor), so users always have a foothold to recover.
+
+**Why it matters:**
+- **Honest skill signal** &mdash; Unlike XP which only goes up, the gauge penalizes neglect. A high gauge means you are *currently* engaged, not just historically active.
+- **Drives daily return** &mdash; Decay creates gentle urgency to keep learning before your score erodes.
+- **Passive XP at 100** &mdash; Maintaining a perfect gauge rewards +2 XP every 10 minutes, incentivizing mastery.
+- **Sector leaderboards** &mdash; Gauge-derived XP feeds sector-specific rankings, making competition meaningful within each domain.
+- **Subscription driver** &mdash; Free users can only track 3 sector gauges; upgrading unlocks unlimited sectors.
 
 ### Stock Prediction Game
 - **Daily stock pool** &mdash; 5 actively traded stocks selected each trading day
@@ -432,6 +495,63 @@ Set `NEXT_PUBLIC_API_URL` to your deployed backend URL.
 | `NEXT_PUBLIC_SUPABASE_URL` | Yes | Frontend | Supabase project URL |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Yes | Frontend | Supabase anonymous/public key |
 | `NEXT_PUBLIC_API_URL` | Yes | Frontend | Backend API base URL |
+
+---
+
+## Scalability
+
+FinaMeter is architected for growth from hackathon prototype to production platform:
+
+| Concern | Current Approach | Production Path |
+|---------|-----------------|-----------------|
+| **Compute** | Single FastAPI instance on Railway | Horizontal scaling behind a load balancer; stateless design means any instance can serve any request |
+| **Database** | Supabase managed PostgreSQL | Supabase scales vertically with plan upgrades; materialized views already offload leaderboard reads |
+| **Background jobs** | In-process async tasks | Migrate to dedicated workers (Celery / BullMQ) with a Redis broker for independent scaling |
+| **LLM processing** | Synchronous per-article | Batch queue with concurrency limits and dead-letter retry; swap models via OpenRouter without code changes |
+| **Real-time data** | WebSocket proxy (Finnhub) | Dedicated WebSocket gateway with connection pooling and fan-out |
+| **Content ingestion** | Multi-source polling loops | Add sources by dropping in a new adapter; deduplication layer is source-agnostic |
+| **Caching** | None (DB-direct) | Redis/Valkey layer for hot paths (leaderboards, market quotes, article lists) |
+
+**Sustainability by design:**
+- **Async-first** &mdash; Every I/O operation is non-blocking, maximizing throughput per instance
+- **Materialized views** &mdash; Leaderboard queries hit pre-computed views, not live aggregations
+- **Adaptive scheduling** &mdash; Ingestion frequency scales with market hours (5 min during trading, 30 min overnight) to minimize API costs
+- **Batch processing** &mdash; Articles processed in batches of 15 with automatic retry for failed items
+- **Decay mechanics** &mdash; Gauge decay and passive XP run as lightweight background sweeps, not per-request calculations
+
+---
+
+## Business Model
+
+FinaMeter follows a **freemium-to-subscription** model designed to convert engaged learners into paying subscribers:
+
+### Free Tier
+- Access to all articles and AI-generated summaries
+- Quizzes on up to **3 favorited sectors**
+- Daily quiz and stock prediction game
+- Global leaderboard visibility
+- Basic weekly report (stats only)
+
+### Pro Subscription
+| Feature | Free | Pro |
+|---------|------|-----|
+| Favorited sectors | 3 | Unlimited |
+| Sector-specific quizzes & tutorials | Limited | Full access across all sectors |
+| Weekly report | Basic stats | Personalized AI insights, revision quizzes, learning recommendations |
+| Gauge tracking | 3 sectors | All sectors with detailed analytics |
+| Leaderboard | Global only | Global + sector + friends |
+| Content | Standard articles | Priority access to new articles + advanced FLS lessons |
+
+### Revenue Drivers
+- **Sector unlock paywall** &mdash; Free users can only favorite and track gauge scores for 3 sectors. Subscription removes the cap, unlocking quizzes, tutorials, and gauge tracking for all 20+ sectors (crypto, forex, bonds, commodities, regional markets, etc.)
+- **Personalized weekly reports** &mdash; Pro subscribers receive AI-generated weekly reports with tailored revision quizzes targeting their weakest areas, performance trends, and actionable learning recommendations
+- **Retention loop** &mdash; Streak bonuses, gauge decay, and social features (friend leaderboards, activity feed) create daily engagement habits that drive long-term subscription retention
+
+### Growth Path
+1. **Hackathon launch** &rarr; Validate core learning loop with early users
+2. **Open beta** &rarr; Grow free tier, measure engagement and sector interest distribution
+3. **Subscription launch** &rarr; Gate advanced sectors and personalized reports behind Pro
+4. **B2B expansion** &rarr; White-label for financial institutions, universities, and corporate training programs
 
 ---
 
