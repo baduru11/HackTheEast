@@ -87,28 +87,21 @@ async def debug_process():
 
 @router.get("/debug/bulk")
 async def debug_bulk():
-    """Process ALL pending articles in rapid parallel batches."""
+    """Process all pending articles in batches of 100."""
     from app.services.pipeline import process_pending_articles, recover_stuck_articles
     await recover_stuck_articles()
 
-    total_done = 0
-    total_failed = 0
     rounds = 0
-
     while True:
-        articles, count = await db.get_articles(status="pending", page=1, limit=1)
+        articles, _ = await db.get_articles(status="pending", page=1, limit=1)
         if not articles:
             break
-        await process_pending_articles(batch_size=20)
+        await process_pending_articles(batch_size=100)
         rounds += 1
 
-        # Count current stats
-        _, done_count = await db.get_articles(status="done", page=1, limit=1)
-        _, failed_count = await db.get_articles(status="failed", page=1, limit=1)
-        total_done = done_count or 0
-        total_failed = failed_count or 0
-
-    return {"rounds": rounds, "total_done": total_done, "total_failed": total_failed}
+    _, done_count = await db.get_articles(status="done", page=1, limit=1)
+    _, failed_count = await db.get_articles(status="failed", page=1, limit=1)
+    return {"rounds": rounds, "total_done": done_count or 0, "total_failed": failed_count or 0}
 
 
 @router.get("/{article_id}")
