@@ -238,11 +238,10 @@ async def _process_single_article(article: dict) -> bool:
             return False
 
         # Save AI content
-        import json
         await db.update_article(article_id, {
             "ai_summary": result.summary,
             "ai_tutorial": None,
-            "lesson_data": json.dumps(result.model_dump()),
+            "lesson_data": result.model_dump(),
             "processing_status": "done",
         })
 

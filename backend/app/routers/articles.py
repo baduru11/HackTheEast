@@ -1,13 +1,12 @@
-import os
-
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 
+from app.config import settings
 from app.db import supabase as db
 from app.dependencies import get_current_user
 
 router = APIRouter(prefix="/api/v1/articles", tags=["articles"])
 
-IS_DEBUG = os.getenv("DEBUG", "false").lower() == "true"
+IS_DEBUG = settings.debug
 
 
 @router.get("/feed")
@@ -145,9 +144,7 @@ async def _fix_sources():
 
 @router.get("/debug/reprocess-lessons")
 async def debug_reprocess_lessons(background_tasks: BackgroundTasks):
-    """Re-process existing articles with the new lesson prompt (debug mode only)."""
-    if not IS_DEBUG:
-        raise HTTPException(status_code=404, detail="Not found")
+    """Re-process existing articles with the new lesson prompt."""
     background_tasks.add_task(_reprocess_lessons)
     # Count articles needing reprocessing
     result = db.supabase.table("articles").select("id", count="exact").eq(
@@ -178,7 +175,7 @@ async def _reprocess_lessons():
 
             await db.update_article(article_id, {
                 "ai_summary": lesson.summary,
-                "lesson_data": json.dumps(lesson.model_dump()),
+                "lesson_data": lesson.model_dump(),
             })
 
             # Check if quiz_attempts exist for this article's quiz

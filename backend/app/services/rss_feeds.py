@@ -59,6 +59,8 @@ RSS_SOURCES = [
 
 MAX_ARTICLES_PER_FEED = 15
 
+BROKEN_IMAGE_PATTERNS = ["s.yimg.com", "media.zenfs.com", "static.finnhub.io", "static2.finnhub.io"]
+
 _STRIP_HTML = re.compile(r"<[^>]+>")
 
 
@@ -115,7 +117,7 @@ async def fetch_single_feed(source: dict) -> list[dict]:
             snippet = _strip_html(snippet_raw)[:500] if snippet_raw else ""
 
             image_url = _extract_image(entry)
-            if not image_url:
+            if not image_url or any(p in image_url for p in BROKEN_IMAGE_PATTERNS):
                 continue
 
             articles.append({

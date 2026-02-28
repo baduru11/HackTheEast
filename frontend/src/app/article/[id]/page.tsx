@@ -59,7 +59,8 @@ export default function ArticlePage({ params }: { params: Promise<{ id: string }
     );
   }
 
-  const lesson = article.lesson_data;
+  const rawLesson = article.lesson_data;
+  const lesson = typeof rawLesson === "string" ? JSON.parse(rawLesson) : rawLesson;
 
   return (
     <FadeInUp>

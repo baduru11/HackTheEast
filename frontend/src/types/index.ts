@@ -170,10 +170,50 @@ export interface LeaderboardEntry {
 
 export interface Notification {
   id: number;
-  type: "new_article" | "gauge_decay" | "achievement";
+  type: "new_article" | "gauge_decay" | "achievement" | "friend_request" | "friend_accepted";
   title: string;
   body: string;
   link: string | null;
   read: boolean;
   created_at: string;
+}
+
+// --- Social Types ---
+
+export interface FriendProfile {
+  id: string;
+  friendship_id: string;
+  username: string | null;
+  display_name: string | null;
+  avatar_url: string | null;
+  total_xp: number;
+}
+
+export interface FriendRequest {
+  friendship_id: string;
+  user: {
+    id: string;
+    username: string | null;
+    display_name: string | null;
+    avatar_url: string | null;
+    total_xp: number;
+  };
+  created_at: string;
+}
+
+export interface ReactionCount {
+  emoji: string;
+  count: number;
+}
+
+export interface ActivityFeedItem {
+  id: string;
+  user_id: string;
+  username: string | null;
+  avatar_url: string | null;
+  activity_type: "quiz_completed" | "gauge_milestone" | "streak_milestone";
+  metadata: Record<string, unknown>;
+  created_at: string;
+  reactions: ReactionCount[];
+  my_reaction: string | null;
 }
