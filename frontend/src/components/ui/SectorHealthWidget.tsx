@@ -100,7 +100,7 @@ export default function SectorHealthWidget() {
         )}
       </AnimatePresence>
 
-      <div className="glass rounded-xl overflow-hidden">
+      <div className="glass rounded-xl overflow-hidden" style={{ background: "rgba(17, 24, 39, 0.88)" }}>
         {/* Header — always visible */}
         <button
           onClick={() => setCollapsed((c) => !c)}
