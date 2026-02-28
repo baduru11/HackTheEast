@@ -186,49 +186,55 @@ async def _process_single_article(article: dict) -> bool:
     """Process a single article. Returns True on success, False on failure."""
     article_id = article["id"]
     try:
-        # Step 1: Scrape (follows redirects, returns final_url)
-        await db.update_article(article_id, {"processing_status": "scraping"})
-        scraped = await scraper.scrape_article(article["original_url"])
+        existing_content = article.get("raw_content")
 
-        raw_text = scraped.get("text", "") if scraped else ""
-        og_image = scraped.get("image") if scraped else None
-        author = scraped.get("author") if scraped else None
-        final_url = scraped.get("final_url") if scraped else None
+        # Step 1: Scrape — skip if article already has content (retry of LLM-failed article)
+        if existing_content and len(existing_content) >= 20:
+            raw_text = existing_content
+            await db.update_article(article_id, {"processing_status": "generating"})
+        else:
+            await db.update_article(article_id, {"processing_status": "scraping"})
+            scraped = await scraper.scrape_article(article["original_url"])
 
-        # Update URL and source name if redirect resolved to a different domain
-        if final_url and final_url != article["original_url"]:
-            real_source = _source_from_domain(final_url)
-            updates = {"original_url": final_url}
-            if real_source:
-                updates["source_name"] = real_source
-            await db.update_article(article_id, updates)
+            raw_text = scraped.get("text", "") if scraped else ""
+            og_image = scraped.get("image") if scraped else None
+            author = scraped.get("author") if scraped else None
+            final_url = scraped.get("final_url") if scraped else None
 
-        # Update image if we got a better one from og:image
-        if og_image and og_image != article.get("image_url"):
-            await db.update_article(article_id, {"image_url": og_image})
+            # Update URL and source name if redirect resolved to a different domain
+            if final_url and final_url != article["original_url"]:
+                real_source = _source_from_domain(final_url)
+                updates = {"original_url": final_url}
+                if real_source:
+                    updates["source_name"] = real_source
+                await db.update_article(article_id, updates)
 
-        # Skip articles with no image at all
-        if not og_image and not article.get("image_url"):
-            await db.update_article(article_id, {"processing_status": "failed"})
-            return False
+            # Update image if we got a better one from og:image
+            if og_image and og_image != article.get("image_url"):
+                await db.update_article(article_id, {"image_url": og_image})
 
-        # Fall back to snippet if scraping failed or got too little text
-        if not raw_text or len(raw_text) < 100:
-            raw_text = article.get("snippet", "")
+            # Skip articles with no image at all
+            if not og_image and not article.get("image_url"):
+                await db.update_article(article_id, {"processing_status": "failed"})
+                return False
 
-        # Ultimate fallback: use headline (some RSS feeds like Investing.com have no description)
-        if not raw_text or len(raw_text) < 30:
-            raw_text = article.get("headline", "")
+            # Fall back to snippet if scraping failed or got too little text
+            if not raw_text or len(raw_text) < 100:
+                raw_text = article.get("snippet", "")
 
-        if not raw_text or len(raw_text) < 20:
-            await db.update_article(article_id, {"processing_status": "failed"})
-            return False
+            # Ultimate fallback: use headline (some RSS feeds like Investing.com have no description)
+            if not raw_text or len(raw_text) < 30:
+                raw_text = article.get("headline", "")
 
-        await db.update_article(article_id, {
-            "raw_content": raw_text,
-            "author": author,
-            "processing_status": "generating",
-        })
+            if not raw_text or len(raw_text) < 20:
+                await db.update_article(article_id, {"processing_status": "failed"})
+                return False
+
+            await db.update_article(article_id, {
+                "raw_content": raw_text,
+                "author": author,
+                "processing_status": "generating",
+            })
 
         # Step 2: LLM generate lesson
         result = await llm.generate_lesson(article["headline"], raw_text)

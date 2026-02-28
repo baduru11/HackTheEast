@@ -150,18 +150,38 @@ class LessonData(BaseModel):
     @field_validator("concept_cards")
     @classmethod
     def validate_concept_cards(cls, v):
-        if len(v) < 3 or len(v) > 5:
-            raise ValueError("Must have 3-5 concept cards")
+        if len(v) > 5:
+            v = v[:5]
+        if len(v) < 2:
+            raise ValueError("Must have at least 2 concept cards")
         return v
 
     @field_validator("quiz")
     @classmethod
     def validate_quiz(cls, v):
-        if len(v) != 6:
-            raise ValueError("Must have exactly 6 quiz questions")
+        if len(v) > 6:
+            v = v[:6]
+        if len(v) < 4:
+            raise ValueError("Must have at least 4 quiz questions")
+        return v
+
+    @field_validator("asset_impact_matrix")
+    @classmethod
+    def validate_asset_impact_matrix(cls, v):
+        if len(v) > 6:
+            v = v[:6]
         return v
 
     @classmethod
     def from_raw_response(cls, raw: str) -> "LessonData":
+        import json as _json
         cleaned = re.sub(r"<think>.*?</think>", "", raw, flags=re.DOTALL).strip()
-        return cls.model_validate_json(cleaned)
+        # Try to fix common JSON issues before validation
+        try:
+            data = _json.loads(cleaned)
+        except _json.JSONDecodeError:
+            # Try stripping markdown code fences
+            cleaned = re.sub(r"^```(?:json)?\s*", "", cleaned)
+            cleaned = re.sub(r"\s*```$", "", cleaned)
+            data = _json.loads(cleaned)
+        return cls.model_validate(data)

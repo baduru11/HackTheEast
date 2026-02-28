@@ -165,39 +165,52 @@ RULES:
 Respond ONLY with valid JSON."""
 
 
-async def generate_lesson(headline: str, body: str) -> LessonData | None:
+async def generate_lesson(headline: str, body: str, max_retries: int = 2) -> LessonData | None:
     """Generate a full FLS v1 structured lesson from article content."""
     user_prompt = f"""Article headline: {headline}
 
 Article body:
 {body[:8000]}"""
 
-    try:
-        async with httpx.AsyncClient(timeout=180) as client:
-            response = await client.post(
-                OPENROUTER_URL,
-                headers={
-                    "Authorization": f"Bearer {settings.openrouter_api_key}",
-                    "Content-Type": "application/json",
-                },
-                json={
-                    "model": "minimax/minimax-m2.5",
-                    "messages": [
-                        {"role": "system", "content": LESSON_SYSTEM_PROMPT},
-                        {"role": "user", "content": user_prompt},
-                    ],
-                    "response_format": {"type": "json_object"},
-                    "temperature": 0.3,
-                },
-            )
-            response.raise_for_status()
-            data = response.json()
+    import asyncio as _asyncio
 
-        raw_content = data["choices"][0]["message"]["content"]
-        return LessonData.from_raw_response(raw_content)
-    except Exception as e:
-        print(f"Lesson LLM error: {e}")
-        return None
+    last_error = None
+    for attempt in range(max_retries + 1):
+        try:
+            async with httpx.AsyncClient(timeout=180) as client:
+                response = await client.post(
+                    OPENROUTER_URL,
+                    headers={
+                        "Authorization": f"Bearer {settings.openrouter_api_key}",
+                        "Content-Type": "application/json",
+                    },
+                    json={
+                        "model": "minimax/minimax-m2.5",
+                        "messages": [
+                            {"role": "system", "content": LESSON_SYSTEM_PROMPT},
+                            {"role": "user", "content": user_prompt},
+                        ],
+                        "response_format": {"type": "json_object"},
+                        "temperature": 0.3,
+                    },
+                )
+                response.raise_for_status()
+                data = response.json()
+
+            raw_content = data["choices"][0]["message"]["content"]
+            return LessonData.from_raw_response(raw_content)
+        except httpx.HTTPStatusError as e:
+            last_error = f"HTTP {e.response.status_code}: {e.response.text[:200]}"
+            print(f"Lesson LLM HTTP error (attempt {attempt + 1}/{max_retries + 1}): {last_error}")
+        except Exception as e:
+            last_error = f"{type(e).__name__}: {e}"
+            print(f"Lesson LLM error (attempt {attempt + 1}/{max_retries + 1}): {last_error}")
+
+        if attempt < max_retries:
+            await _asyncio.sleep(2 ** attempt)  # 1s, 2s backoff
+
+    print(f"Lesson generation failed after {max_retries + 1} attempts for: {headline[:80]}. Last error: {last_error}")
+    return None
 
 
 async def generate_daily_quiz_questions(article_texts: list[str]) -> list[dict]:
