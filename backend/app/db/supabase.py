@@ -235,6 +235,10 @@ async def mark_all_notifications_read(user_id: str):
     supabase.table("notifications").update({"read": True}).eq("user_id", user_id).eq("read", False).execute()
 
 
+async def delete_all_notifications(user_id: str):
+    supabase.table("notifications").delete().eq("user_id", user_id).execute()
+
+
 # --- Leaderboard ---
 
 async def get_global_leaderboard(period: str = "all_time") -> list[dict]:

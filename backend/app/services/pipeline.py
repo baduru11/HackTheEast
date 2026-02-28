@@ -305,20 +305,37 @@ async def _notify_sector_users(article_id: int, headline: str):
     if not article:
         return
 
-    sector_ids = [s["sector_id"] for s in article.get("article_sectors", [])]
+    article_sectors = article.get("article_sectors", [])
+    sector_ids = [s["sector_id"] for s in article_sectors]
     if not sector_ids:
         return
 
-    all_favorites = await db.get_all_favorites_with_users()
-    notified_users = set()
+    # Build sector_id -> name lookup
+    sector_names = {}
+    for s in article_sectors:
+        sec = s.get("sectors")
+        if sec:
+            sector_names[s["sector_id"]] = sec.get("name", "")
 
+    all_favorites = await db.get_all_favorites_with_users()
+
+    # Group by user: collect all matching sector names per user
+    user_sectors: dict[str, list[str]] = {}
     for fav in all_favorites:
-        if fav["sector_id"] in sector_ids and fav["user_id"] not in notified_users:
-            await db.insert_notification(
-                user_id=fav["user_id"],
-                type="new_article",
-                title="New article in your sector",
-                body=headline[:200],
-                link=f"/article/{article_id}",
-            )
-            notified_users.add(fav["user_id"])
+        if fav["sector_id"] in sector_ids:
+            uid = fav["user_id"]
+            name = sector_names.get(fav["sector_id"], "")
+            if uid not in user_sectors:
+                user_sectors[uid] = []
+            if name:
+                user_sectors[uid].append(name)
+
+    for uid, names in user_sectors.items():
+        sector_label = ", ".join(names[:3]) if names else "your sector"
+        await db.insert_notification(
+            user_id=uid,
+            type="new_article",
+            title=f"New in {sector_label}",
+            body=headline[:200],
+            link=f"/article/{article_id}",
+        )

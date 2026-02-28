@@ -124,7 +124,6 @@ export default function SocialPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<FriendProfile[]>([]);
   const [searching, setSearching] = useState(false);
-  const [copied, setCopied] = useState(false);
 
   /* ─── Data fetching ─── */
   const fetchFeed = useCallback(async (cursor?: string) => {
@@ -186,16 +185,6 @@ export default function SocialPage() {
     if (!token) return;
     await apiFetch(`/friends/${id}`, { token, method: "DELETE" });
     setFriends(prev => prev.filter(f => f.friendship_id !== id));
-  };
-
-  const copyInviteLink = async () => {
-    if (!token) return;
-    const res = await apiFetch<{ link: string }>("/friends/invite-link", { token });
-    if (res.data?.link) {
-      await navigator.clipboard.writeText(window.location.origin + res.data.link);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    }
   };
 
   /* ─── Reactions ─── */
@@ -406,17 +395,6 @@ export default function SocialPage() {
             </button>
           </div>
 
-          {/* Invite link */}
-          <button
-            onClick={copyInviteLink}
-            className="w-full mb-5 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-gray-900/60 border border-gray-800 hover:border-teal-400/30 text-sm text-gray-400 hover:text-teal-400 transition-all"
-          >
-            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M7.217 10.907a2.25 2.25 0 100 2.186m0-2.186c.18.324.283.696.283 1.093s-.103.77-.283 1.093m0-2.186l9.566-5.314m-9.566 7.5l9.566 5.314m0 0a2.25 2.25 0 103.935 2.186 2.25 2.25 0 00-3.935-2.186zm0-12.814a2.25 2.25 0 103.933-2.185 2.25 2.25 0 00-3.933 2.185z" />
-            </svg>
-            {copied ? "Copied!" : "Share invite link"}
-          </button>
-
           {/* Search Results */}
           {searchResults.length > 0 && (
             <div className="mb-5">
@@ -483,7 +461,7 @@ export default function SocialPage() {
             ) : friends.length === 0 ? (
               <div className="text-center py-12">
                 <p className="text-gray-500 mb-1">No friends yet</p>
-                <p className="text-gray-600 text-sm">Search for users or share your invite link</p>
+                <p className="text-gray-600 text-sm">Search for users to add friends</p>
               </div>
             ) : (
               <StaggerList className="space-y-1.5">
