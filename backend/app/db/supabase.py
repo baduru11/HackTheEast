@@ -304,7 +304,7 @@ async def get_users_fav_sectors(user_ids: list[str]) -> dict[str, dict]:
 
 
 async def get_users_sector_breakdown(user_ids: list[str]) -> dict[str, list[dict]]:
-    """Return top 3 sectors per user, with fill % relative to that user's max sector XP."""
+    """Return top 3 sectors per user, with fill % as share of user's total sector XP."""
     if not user_ids:
         return {}
     result = (
@@ -327,13 +327,13 @@ async def get_users_sector_breakdown(user_ids: list[str]) -> dict[str, list[dict
     out: dict[str, list[dict]] = {}
     for uid, rows in user_sectors.items():
         sorted_rows = sorted(rows, key=lambda r: r["sector_xp"], reverse=True)
-        max_xp = sorted_rows[0]["sector_xp"] if sorted_rows else 1
+        total_xp = sum(r["sector_xp"] for r in sorted_rows) or 1
         out[uid] = [
             {
                 "name": sector_map.get(r["sector_id"], {}).get("name"),
                 "slug": sector_map.get(r["sector_id"], {}).get("slug"),
                 "xp": r["sector_xp"],
-                "fill": round(r["sector_xp"] * 100 / max_xp),
+                "fill": round(r["sector_xp"] * 100 / total_xp),
             }
             for r in sorted_rows[:3]
             if sector_map.get(r["sector_id"])
@@ -520,7 +520,7 @@ async def get_friends_feed(user_id: str, friend_ids: list[str], cursor: str | No
         return []
 
     query = supabase.table("activity_feed").select(
-        "*, profiles!activity_feed_user_id_fkey(username, avatar_url)"
+        "*, profiles!activity_feed_user_id_fkey(username, display_name, avatar_url)"
     ).in_("user_id", friend_ids).order("created_at", desc=True).limit(limit)
 
     if cursor:
