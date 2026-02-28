@@ -10,7 +10,6 @@ import ConceptCardsSection from "@/components/lesson/ConceptCardsSection";
 import MechanismMapSection from "@/components/lesson/MechanismMapSection";
 import AssetImpactSection from "@/components/lesson/AssetImpactSection";
 import PracticeSkillSection from "@/components/lesson/PracticeSkillSection";
-import InlineQuiz from "@/components/lesson/InlineQuiz";
 import LessonFallback from "@/components/lesson/LessonFallback";
 import { FadeInUp } from "@/components/shared/MotionWrappers";
 import type { Article } from "@/types";
@@ -107,7 +106,19 @@ export default function ArticlePage({ params }: { params: Promise<{ id: string }
             <MechanismMapSection data={lesson.mechanism_map} />
             <AssetImpactSection assets={lesson.asset_impact_matrix} />
             <PracticeSkillSection data={lesson.practice_skill} />
-            <InlineQuiz articleId={article.id} />
+
+            {/* Quiz CTA */}
+            <div className="text-center py-4">
+              <Link
+                href={`/article/${id}/quiz`}
+                className="inline-flex items-center gap-2 bg-teal-500 hover:bg-teal-400 text-white font-medium px-8 py-3 rounded-xl transition-colors text-sm"
+              >
+                Move on to Quiz
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </Link>
+            </div>
           </div>
         ) : (
           <LessonFallback
