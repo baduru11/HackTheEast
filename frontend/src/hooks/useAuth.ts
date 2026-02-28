@@ -39,11 +39,14 @@ export function useAuth() {
     return supabase.auth.signInWithPassword({ email, password });
   };
 
-  const signUpWithEmail = async (email: string, password: string) => {
+  const signUpWithEmail = async (email: string, password: string, displayName?: string) => {
     return supabase.auth.signUp({
       email,
       password,
-      options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
+      options: {
+        emailRedirectTo: `${window.location.origin}/auth/callback`,
+        data: displayName ? { full_name: displayName, name: displayName } : undefined,
+      },
     });
   };
 

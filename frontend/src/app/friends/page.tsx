@@ -108,7 +108,7 @@ export default function FriendsPage() {
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-          placeholder="Search by username..."
+          placeholder="Search by name..."
           className="flex-1 bg-gray-900 border border-gray-800 rounded-lg px-4 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-teal-400/50"
         />
         <button
@@ -131,10 +131,10 @@ export default function FriendsPage() {
                   <img src={u.avatar_url} alt="" className="w-8 h-8 rounded-full" />
                 ) : (
                   <div className="w-8 h-8 rounded-full bg-gray-800 flex items-center justify-center text-xs font-bold text-gray-400">
-                    {(u.username || "?")[0].toUpperCase()}
+                    {(u.display_name || u.username || "?")[0].toUpperCase()}
                   </div>
                 )}
-                <span className="flex-1 text-sm text-white font-medium">{u.username || "Anonymous"}</span>
+                <span className="flex-1 text-sm text-white font-medium">{u.display_name || u.username || "Anonymous"}</span>
                 <span className="text-xs text-gray-500">{u.total_xp.toLocaleString()} XP</span>
                 <button
                   onClick={() => sendRequest(u.id)}
@@ -159,10 +159,10 @@ export default function FriendsPage() {
                   <img src={r.user.avatar_url} alt="" className="w-8 h-8 rounded-full" />
                 ) : (
                   <div className="w-8 h-8 rounded-full bg-gray-800 flex items-center justify-center text-xs font-bold text-gray-400">
-                    {(r.user.username || "?")[0].toUpperCase()}
+                    {(r.user.display_name || r.user.username || "?")[0].toUpperCase()}
                   </div>
                 )}
-                <span className="flex-1 text-sm text-white font-medium">{r.user.username || "Anonymous"}</span>
+                <span className="flex-1 text-sm text-white font-medium">{r.user.display_name || r.user.username || "Anonymous"}</span>
                 <button
                   onClick={() => acceptRequest(r.friendship_id)}
                   className="text-xs bg-teal-500 text-white px-3 py-1 rounded-lg hover:bg-teal-400"
@@ -205,10 +205,10 @@ export default function FriendsPage() {
                   <img src={f.avatar_url} alt="" className="w-8 h-8 rounded-full" />
                 ) : (
                   <div className="w-8 h-8 rounded-full bg-gray-800 flex items-center justify-center text-xs font-bold text-gray-400">
-                    {(f.username || "?")[0].toUpperCase()}
+                    {(f.display_name || f.username || "?")[0].toUpperCase()}
                   </div>
                 )}
-                <span className="flex-1 text-sm text-white font-medium">{f.username || "Anonymous"}</span>
+                <span className="flex-1 text-sm text-white font-medium">{f.display_name || f.username || "Anonymous"}</span>
                 <span className="text-xs text-gray-500">{f.total_xp.toLocaleString()} XP</span>
                 <button
                   onClick={() => unfriend(f.friendship_id)}

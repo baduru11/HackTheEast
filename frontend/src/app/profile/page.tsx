@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { useAuth } from "@/hooks/useAuth";
 import { apiFetch } from "@/lib/api";
@@ -29,13 +29,12 @@ export default function ProfilePage() {
   const { user, session, loading: authLoading } = useAuth();
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [editing, setEditing] = useState(false);
+  const [editName, setEditName] = useState("");
+  const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
-    if (authLoading) return;
-    if (!session) {
-      setLoading(false);
-      return;
-    }
+  const fetchProfile = useCallback(() => {
+    if (!session) return;
     setLoading(true);
     apiFetch<DashboardData>("/profile", { token: session.access_token })
       .then((res) => {
@@ -43,7 +42,31 @@ export default function ProfilePage() {
       })
       .catch(console.error)
       .finally(() => setLoading(false));
-  }, [session, authLoading]);
+  }, [session]);
+
+  useEffect(() => {
+    if (authLoading) return;
+    if (!session) {
+      setLoading(false);
+      return;
+    }
+    fetchProfile();
+  }, [session, authLoading, fetchProfile]);
+
+  const saveDisplayName = async () => {
+    if (!session || !editName.trim()) return;
+    setSaving(true);
+    const res = await apiFetch("/profile", {
+      token: session.access_token,
+      method: "PUT",
+      body: JSON.stringify({ display_name: editName.trim() }),
+    });
+    if (res.success) {
+      fetchProfile();
+      setEditing(false);
+    }
+    setSaving(false);
+  };
 
   if (authLoading || loading) {
     return (
@@ -106,9 +129,53 @@ export default function ProfilePage() {
               </div>
             )}
             <div className="flex-1">
-              <h1 className="text-xl font-bold text-white">
-                {data.profile.display_name || data.profile.username || "Anonymous"}
-              </h1>
+              {editing ? (
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={editName}
+                    onChange={(e) => setEditName(e.target.value)}
+                    className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-white text-lg font-bold focus:outline-none focus:border-teal-400 w-full max-w-xs"
+                    maxLength={100}
+                    autoFocus
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") saveDisplayName();
+                      if (e.key === "Escape") setEditing(false);
+                    }}
+                  />
+                  <button
+                    onClick={saveDisplayName}
+                    disabled={saving || !editName.trim()}
+                    className="text-sm bg-teal-500 hover:bg-teal-400 disabled:opacity-50 text-white px-3 py-1.5 rounded-lg"
+                  >
+                    {saving ? "..." : "Save"}
+                  </button>
+                  <button
+                    onClick={() => setEditing(false)}
+                    className="text-sm text-gray-500 hover:text-gray-300 px-2 py-1.5"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <h1 className="text-xl font-bold text-white">
+                    {data.profile.display_name || data.profile.username || "Anonymous"}
+                  </h1>
+                  <button
+                    onClick={() => {
+                      setEditName(data.profile.display_name || data.profile.username || "");
+                      setEditing(true);
+                    }}
+                    className="text-gray-600 hover:text-gray-400 transition-colors"
+                    title="Edit display name"
+                  >
+                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L6.832 19.82a4.5 4.5 0 01-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 011.13-1.897L16.863 4.487z" />
+                    </svg>
+                  </button>
+                </div>
+              )}
               <div className="flex items-center gap-4 mt-1 text-sm text-gray-400">
                 <span className="text-teal-400 font-semibold">{data.profile.total_xp} XP</span>
                 {data.global_rank && <span>Rank #{data.global_rank}</span>}

@@ -391,10 +391,10 @@ async def get_friend_ids(user_id: str) -> list[str]:
 
 
 async def search_users(query: str, current_user_id: str) -> list[dict]:
-    """Search profiles by username (partial match), excluding current user."""
+    """Search profiles by username or display_name (partial match), excluding current user."""
     result = supabase.table("profiles").select(
         "id, username, display_name, avatar_url, total_xp"
-    ).ilike("username", f"%{query}%").neq("id", current_user_id).limit(10).execute()
+    ).or_(f"username.ilike.%{query}%,display_name.ilike.%{query}%").neq("id", current_user_id).limit(10).execute()
     return result.data
 
 

@@ -7,6 +7,7 @@ import { StaggerList, StaggerItem, FadeInUp } from "@/components/shared/MotionWr
 interface LBEntry {
   user_id: string;
   username: string | null;
+  display_name: string | null;
   avatar_url: string | null;
   total_xp?: number;
   sector_xp?: number;
@@ -64,6 +65,10 @@ function CrownIcon() {
 }
 
 /* ─── Podium avatar ─── */
+function displayName(entry: LBEntry) {
+  return entry.display_name || entry.username || "Anonymous";
+}
+
 function PodiumAvatar({ url, name, size }: { url: string | null; name: string | null; size: "lg" | "md" }) {
   const s = size === "lg" ? "w-16 h-16" : "w-12 h-12";
   const textS = size === "lg" ? "text-xl" : "text-base";
@@ -121,10 +126,10 @@ function Podium({ entries }: { entries: LBEntry[] }) {
               <div className={`text-center rounded-xl bg-gray-900/80 border ${cfg.border} ${cfg.glow} ${isFirst ? "p-5" : "p-4"}`}>
                 {isFirst && <CrownIcon />}
                 <div className={cfg.ring + " rounded-full mx-auto w-fit"}>
-                  <PodiumAvatar url={entry.avatar_url} name={entry.username} size={isFirst ? "lg" : "md"} />
+                  <PodiumAvatar url={entry.avatar_url} name={displayName(entry)} size={isFirst ? "lg" : "md"} />
                 </div>
                 <p className={`${isFirst ? "text-base font-bold" : "text-sm font-semibold"} text-white mt-2 truncate`}>
-                  {entry.username || "Anonymous"}
+                  {displayName(entry)}
                 </p>
                 <p className={`${isFirst ? "text-sm" : "text-xs"} font-bold text-teal-400 mt-1`}>
                   {xp.toLocaleString()} XP
@@ -289,11 +294,11 @@ export default function LeaderboardPage() {
                         <img src={entry.avatar_url} alt="" className="w-9 h-9 rounded-full object-cover" />
                       ) : (
                         <div className="w-9 h-9 rounded-full bg-gray-800 flex items-center justify-center text-xs font-bold text-gray-500">
-                          {(entry.username || "?")[0].toUpperCase()}
+                          {displayName(entry)[0].toUpperCase()}
                         </div>
                       )}
                       <span className="flex-1 text-sm text-white font-medium truncate">
-                        {entry.username || "Anonymous"}
+                        {displayName(entry)}
                       </span>
                       <span className="text-sm text-teal-400 font-bold">
                         {xp.toLocaleString()} XP

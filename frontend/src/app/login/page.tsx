@@ -10,6 +10,7 @@ export default function LoginPage() {
   const { signInWithGoogle, signInWithEmail, signUpWithEmail } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [displayName, setDisplayName] = useState("");
   const [isSignUp, setIsSignUp] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -20,8 +21,9 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const fn = isSignUp ? signUpWithEmail : signInWithEmail;
-      const { error } = await fn(email, password);
+      const { error } = isSignUp
+        ? await signUpWithEmail(email, password, displayName || undefined)
+        : await signInWithEmail(email, password);
       if (error) {
         setError(error.message);
       } else {
@@ -89,6 +91,20 @@ export default function LoginPage() {
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-4">
+              {isSignUp && (
+                <div>
+                  <label className="block text-sm text-gray-400 mb-1.5">Display Name</label>
+                  <input
+                    type="text"
+                    value={displayName}
+                    onChange={(e) => setDisplayName(e.target.value)}
+                    className="w-full bg-gray-800/50 border border-gray-700 rounded-lg px-4 py-2.5 text-white placeholder-gray-500 focus:outline-none focus:border-teal-400 focus:ring-1 focus:ring-teal-400 transition-colors"
+                    placeholder="Your name"
+                    required
+                    maxLength={100}
+                  />
+                </div>
+              )}
               <div>
                 <label className="block text-sm text-gray-400 mb-1.5">Email</label>
                 <input

@@ -94,7 +94,7 @@ export default function AddFriendPage() {
           <img src={profile.avatar_url} alt="" className="w-20 h-20 rounded-full mx-auto mb-4" />
         ) : (
           <div className="w-20 h-20 rounded-full bg-gray-800 flex items-center justify-center text-2xl font-bold text-gray-400 mx-auto mb-4">
-            {(profile.username || "?")[0].toUpperCase()}
+            {(profile.display_name || profile.username || "?")[0].toUpperCase()}
           </div>
         )}
         <h2 className="text-xl font-bold text-white mb-1">
