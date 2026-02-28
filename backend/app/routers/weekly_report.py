@@ -6,7 +6,7 @@ from app.dependencies import get_current_user
 router = APIRouter(prefix="/api/v1/weekly-reports", tags=["weekly-reports"])
 
 
-@router.get("/")
+@router.get("")
 async def list_reports(page: int = 1, limit: int = 10, user_id: str = Depends(get_current_user)):
     reports, total = await db.get_weekly_reports(user_id, page, limit)
     return {
