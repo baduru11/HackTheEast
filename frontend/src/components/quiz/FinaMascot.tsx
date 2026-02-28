@@ -8,9 +8,10 @@ interface FinaMascotProps {
   expression: FinaExpression;
 }
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
 const variants: Record<
   FinaExpression,
-  { initial: object; animate: object; exit: object; transition: object }
+  { initial: any; animate: any; exit: any; transition: any }
 > = {
   default: {
     initial: { scale: 0.7, opacity: 0 },

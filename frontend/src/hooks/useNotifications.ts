@@ -18,8 +18,10 @@ export function useNotifications() {
     fetch(`/api/v1/notifications`, {
       headers: { Authorization: `Bearer ${session.access_token}` },
     })
-      .then((r) => r.json())
+      .then((r) => r.text())
+      .then((text) => (text ? JSON.parse(text) : null))
       .then((data) => {
+        if (!data) return;
         if (data.success) {
           setNotifications(data.data);
           setUnreadCount(data.data.filter((n: Notification) => !n.read).length);

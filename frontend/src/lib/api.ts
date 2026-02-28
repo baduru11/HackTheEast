@@ -17,5 +17,11 @@ export async function apiFetch<T>(
     headers: { ...headers, ...(fetchOptions.headers as Record<string, string>) },
   });
 
-  return res.json();
+  const text = await res.text();
+  if (!text) return { success: false, error: { code: "EMPTY_RESPONSE", message: "Empty response" } };
+  try {
+    return JSON.parse(text);
+  } catch {
+    return { success: false, error: { code: "INVALID_JSON", message: text.slice(0, 200) } };
+  }
 }
