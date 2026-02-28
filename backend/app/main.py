@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.scheduler.jobs import setup_scheduler
-from app.routers import articles, quizzes, profile, favorites, leaderboard, notifications, sectors, market, friends, social
+from app.routers import articles, quizzes, profile, favorites, leaderboard, notifications, sectors, market, friends, social, daily_quiz, predict
 
 
 @asynccontextmanager
@@ -40,6 +40,8 @@ app.include_router(sectors.router)
 app.include_router(market.router)
 app.include_router(friends.router)
 app.include_router(social.router)
+app.include_router(daily_quiz.router)
+app.include_router(predict.router)
 
 
 @app.get("/api/v1/health")

@@ -8,6 +8,7 @@ from app.services.pipeline import ingest_finnhub, ingest_gnews_regions, ingest_g
 from app.services.gauge import process_gauge_decay
 from app.services.xp import award_passive_xp
 from app.db.supabase import refresh_leaderboards
+from app.services.predict import resolve_pending_predictions
 
 
 def get_adaptive_interval_minutes() -> int:
@@ -129,6 +130,15 @@ def setup_scheduler():
         CronTrigger(hour=3, minute=0),
         id="cleanup_notifications",
         name="Delete expired notifications",
+        replace_existing=True,
+    )
+
+    # Resolve stock predictions at 16:05 ET (21:05 UTC) on weekdays
+    scheduler.add_job(
+        resolve_pending_predictions,
+        CronTrigger(hour=21, minute=5, day_of_week="mon-fri"),
+        id="resolve_predictions",
+        name="Resolve pending stock predictions",
         replace_existing=True,
     )
 
