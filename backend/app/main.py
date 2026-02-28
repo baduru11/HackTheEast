@@ -42,34 +42,39 @@ async def health():
 
 
 @app.get("/api/v1/debug/token")
-async def debug_token(authorization: str = None):
+async def debug_token(token: str = None):
     """Temporary debug endpoint — remove after fixing auth."""
     from jose import jwt, JWTError
     from app.config import settings
+    from fastapi import Request
 
     info = {
         "jwt_secret_len": len(settings.supabase_jwt_secret),
         "jwt_secret_prefix": settings.supabase_jwt_secret[:4] + "...",
-        "has_auth_header": authorization is not None,
     }
 
-    if authorization:
-        token = authorization.replace("Bearer ", "")
-        info["token_len"] = len(token)
-        info["token_prefix"] = token[:20] + "..."
-        try:
-            payload = jwt.decode(
-                token,
-                settings.supabase_jwt_secret,
-                algorithms=["HS256"],
-                audience="authenticated",
-            )
-            info["decode_success"] = True
-            info["sub"] = payload.get("sub")
-            info["aud"] = payload.get("aud")
-            info["exp"] = payload.get("exp")
-        except JWTError as e:
-            info["decode_success"] = False
-            info["error"] = str(e)
+    if not token:
+        info["usage"] = "Add ?token=YOUR_JWT_TOKEN to test decoding"
+        return info
+
+    info["token_len"] = len(token)
+    info["token_prefix"] = token[:20] + "..."
+    try:
+        payload = jwt.decode(
+            token,
+            settings.supabase_jwt_secret,
+            algorithms=["HS256"],
+            audience="authenticated",
+        )
+        info["decode_success"] = True
+        info["sub"] = payload.get("sub")
+        info["aud"] = payload.get("aud")
+        info["exp"] = payload.get("exp")
+    except JWTError as e:
+        info["decode_success"] = False
+        info["error"] = str(e)
+    except Exception as e:
+        info["decode_success"] = False
+        info["error"] = f"{type(e).__name__}: {e}"
 
     return info
