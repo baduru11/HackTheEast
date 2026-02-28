@@ -148,14 +148,17 @@ async def get_quiz_attempt(user_id: str, quiz_id: int):
     return result.data[0] if result.data else None
 
 
-async def insert_quiz_attempt(user_id: str, quiz_id: int, score: int, total: int, xp: int):
-    supabase.table("quiz_attempts").insert({
+async def insert_quiz_attempt(user_id: str, quiz_id: int, score: int, total: int, xp: int, user_answers: list[int] | None = None):
+    row = {
         "user_id": user_id,
         "quiz_id": quiz_id,
         "score": score,
         "total_questions": total,
         "xp_earned": xp,
-    }).execute()
+    }
+    if user_answers is not None:
+        row["user_answers"] = user_answers
+    supabase.table("quiz_attempts").insert(row).execute()
 
 
 # --- Profiles ---
@@ -667,3 +670,66 @@ async def resolve_prediction(prediction_id: int, price_at_close: float, result: 
         "xp_earned": xp_earned,
         "resolved_at": datetime.now(timezone.utc).isoformat(),
     }).eq("id", prediction_id).execute()
+
+
+# --- Weekly Reports ---
+
+async def get_weekly_report(report_id: int, user_id: str):
+    result = supabase.table("weekly_reports").select("*").eq("id", report_id).eq("user_id", user_id).single().execute()
+    return result.data
+
+
+async def get_latest_weekly_report(user_id: str):
+    result = supabase.table("weekly_reports").select("*").eq("user_id", user_id).order("week_start", desc=True).limit(1).execute()
+    return result.data[0] if result.data else None
+
+
+async def get_weekly_reports(user_id: str, page: int = 1, limit: int = 10):
+    offset = (page - 1) * limit
+    result = supabase.table("weekly_reports").select("*", count="exact").eq(
+        "user_id", user_id
+    ).order("week_start", desc=True).range(offset, offset + limit - 1).execute()
+    return result.data, result.count
+
+
+async def insert_weekly_report(data: dict):
+    result = supabase.table("weekly_reports").insert(data).execute()
+    return result.data[0] if result.data else None
+
+
+async def update_weekly_report(report_id: int, data: dict):
+    supabase.table("weekly_reports").update(data).eq("id", report_id).execute()
+
+
+async def get_users_with_favorites():
+    """Get distinct user_ids that have at least one favorite sector."""
+    result = supabase.table("user_favorites").select("user_id").execute()
+    return list(set(r["user_id"] for r in result.data))
+
+
+async def get_user_quiz_attempts_for_week(user_id: str, week_start: str, week_end: str):
+    """Get all quiz attempts for a user within a date range, with questions."""
+    result = supabase.table("quiz_attempts").select(
+        "*, quizzes(article_id, quiz_questions(question_text, options, correct_index, explanation))"
+    ).eq("user_id", user_id).gte("completed_at", week_start).lte("completed_at", week_end).execute()
+    return result.data or []
+
+
+async def get_user_daily_quiz_attempts_for_week(user_id: str, week_start: str, week_end: str):
+    """Get all daily quiz attempts for a user within a date range."""
+    result = supabase.table("daily_quiz_attempts").select(
+        "*, daily_quizzes(questions)"
+    ).eq("user_id", user_id).gte("completed_at", week_start).lte("completed_at", week_end).execute()
+    return result.data or []
+
+
+async def get_articles_for_sectors_in_range(sector_ids: list[int], start_date: str, end_date: str):
+    """Get articles published in a date range for given sectors."""
+    article_ids_result = supabase.table("article_sectors").select("article_id").in_("sector_id", sector_ids).execute()
+    ids = list(set(r["article_id"] for r in article_ids_result.data))
+    if not ids:
+        return []
+    result = supabase.table("articles").select(
+        "id, headline, ai_summary, published_at, article_sectors(sector_id)"
+    ).eq("processing_status", "done").in_("id", ids).gte("published_at", start_date).lte("published_at", end_date).order("published_at", desc=True).execute()
+    return result.data or []

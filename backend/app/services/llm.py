@@ -253,3 +253,110 @@ Return ONLY the JSON array, no other text."""
         raise ValueError("Unexpected LLM response format")
 
     return questions[:5]
+
+
+async def generate_sector_weekly_summary(sector_name: str, articles: list[dict]) -> str | None:
+    """Generate a professional weekly narrative summary for a sector."""
+    if not articles:
+        return None
+
+    article_texts = []
+    for a in articles[:15]:
+        article_texts.append(f"- {a['headline']}: {(a.get('ai_summary') or '')[:200]}")
+
+    articles_block = "\n".join(article_texts)
+
+    prompt = f"""Summarize the key developments in the {sector_name} sector from the past week based on these articles:
+
+{articles_block}
+
+Write a professional, newsletter-style summary in 150-250 words. Cover:
+- Key trends and themes
+- Major market moves or events
+- Notable developments
+- What to watch going forward
+
+Tone: Authoritative but accessible. Like a Bloomberg or Reuters weekly briefing.
+Return ONLY the summary text, no JSON wrapping."""
+
+    try:
+        async with httpx.AsyncClient(timeout=120) as client:
+            response = await client.post(
+                OPENROUTER_URL,
+                headers={
+                    "Authorization": f"Bearer {settings.openrouter_api_key}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": "minimax/minimax-m2.5",
+                    "messages": [
+                        {"role": "system", "content": "You are a senior financial analyst writing weekly sector briefings. Write clearly and professionally."},
+                        {"role": "user", "content": prompt},
+                    ],
+                    "temperature": 0.4,
+                },
+            )
+            response.raise_for_status()
+            data = response.json()
+        return data["choices"][0]["message"]["content"].strip()
+    except Exception as e:
+        print(f"Sector summary LLM error for {sector_name}: {e}")
+        return None
+
+
+async def generate_revision_questions(wrong_topics: list[str], sector_names: list[str]) -> list[dict]:
+    """Generate fresh revision questions based on topics the user struggled with."""
+    if not wrong_topics:
+        return []
+
+    topics_block = "\n".join(f"- {t}" for t in wrong_topics[:10])
+    sectors_block = ", ".join(sector_names)
+
+    prompt = f"""A user got these financial concepts/questions wrong this week:
+
+{topics_block}
+
+Their favorite sectors: {sectors_block}
+
+Generate exactly 5 fresh multiple-choice questions that test understanding of these weak areas. Each question should approach the concept from a different angle than the original.
+
+Return a JSON array of objects with:
+- "question_text": the question
+- "options": array of exactly 4 answer strings
+- "correct_index": integer 0-3
+- "explanation": brief explanation
+- "based_on_topic": which weak topic this addresses
+
+Return ONLY the JSON array."""
+
+    try:
+        async with httpx.AsyncClient(timeout=120) as client:
+            response = await client.post(
+                OPENROUTER_URL,
+                headers={
+                    "Authorization": f"Bearer {settings.openrouter_api_key}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": "minimax/minimax-m2.5",
+                    "messages": [
+                        {"role": "system", "content": "You are a financial education quiz generator. Return only valid JSON."},
+                        {"role": "user", "content": prompt},
+                    ],
+                    "temperature": 0.4,
+                    "response_format": {"type": "json_object"},
+                },
+            )
+            response.raise_for_status()
+            data = response.json()
+
+        content = data["choices"][0]["message"]["content"]
+        parsed = json.loads(content)
+        if isinstance(parsed, dict) and "questions" in parsed:
+            return parsed["questions"][:5]
+        elif isinstance(parsed, list):
+            return parsed[:5]
+        return []
+    except Exception as e:
+        print(f"Revision quiz LLM error: {e}")
+        return []

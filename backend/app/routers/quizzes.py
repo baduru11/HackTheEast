@@ -98,7 +98,7 @@ async def submit_quiz(
     xp_earned = await calculate_quiz_xp(user_id, score, total)
 
     # Save attempt
-    await db.insert_quiz_attempt(user_id, quiz["id"], score, total, xp_earned)
+    await db.insert_quiz_attempt(user_id, quiz["id"], score, total, xp_earned, user_answers=submission.answers)
 
     # Update XP
     await db.add_xp(user_id, xp_earned)
