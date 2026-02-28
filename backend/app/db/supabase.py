@@ -458,3 +458,119 @@ async def delete_reaction(activity_id: str, user_id: str):
     supabase.table("activity_reactions").delete().eq(
         "activity_id", activity_id
     ).eq("user_id", user_id).execute()
+
+
+# ── Daily Quiz ──────────────────────────────────────────────
+
+async def get_daily_quiz_by_date(date_str: str):
+    result = supabase.table("daily_quizzes").select("*").eq("date", date_str).maybe_single().execute()
+    return result.data
+
+
+async def insert_daily_quiz(date_str: str, questions: list[dict], source_article_ids: list[int]):
+    result = supabase.table("daily_quizzes").insert({
+        "date": date_str,
+        "questions": questions,
+        "source_article_ids": source_article_ids,
+    }).execute()
+    return result.data[0] if result.data else None
+
+
+async def get_daily_quiz_attempt(user_id: str, quiz_id: int):
+    result = (
+        supabase.table("daily_quiz_attempts")
+        .select("*")
+        .eq("user_id", user_id)
+        .eq("quiz_id", quiz_id)
+        .maybe_single()
+        .execute()
+    )
+    return result.data
+
+
+async def insert_daily_quiz_attempt(user_id: str, quiz_id: int, answers: list[int], score: int, total: int, xp_earned: int):
+    result = supabase.table("daily_quiz_attempts").insert({
+        "user_id": user_id,
+        "quiz_id": quiz_id,
+        "answers": answers,
+        "score": score,
+        "total_questions": total,
+        "xp_earned": xp_earned,
+    }).execute()
+    return result.data[0] if result.data else None
+
+
+# ── Predict (Stock Predictions) ────────────────────────────
+
+async def get_active_stock_pool():
+    result = supabase.table("stock_pool").select("ticker, name").eq("active", True).execute()
+    return result.data or []
+
+
+async def get_daily_stocks(date_str: str):
+    result = supabase.table("daily_stocks").select("*").eq("date", date_str).maybe_single().execute()
+    return result.data
+
+
+async def insert_daily_stocks(date_str: str, tickers: list[str]):
+    result = supabase.table("daily_stocks").insert({
+        "date": date_str,
+        "tickers": tickers,
+    }).execute()
+    return result.data[0] if result.data else None
+
+
+async def get_user_prediction(user_id: str, date_str: str, ticker: str):
+    result = (
+        supabase.table("predictions")
+        .select("*")
+        .eq("user_id", user_id)
+        .eq("date", date_str)
+        .eq("ticker", ticker)
+        .maybe_single()
+        .execute()
+    )
+    return result.data
+
+
+async def insert_prediction(user_id: str, date_str: str, ticker: str, direction: str, price_at_bet: float):
+    result = supabase.table("predictions").insert({
+        "user_id": user_id,
+        "date": date_str,
+        "ticker": ticker,
+        "direction": direction,
+        "price_at_bet": price_at_bet,
+    }).execute()
+    return result.data[0] if result.data else None
+
+
+async def get_user_predictions(user_id: str, limit: int = 20):
+    result = (
+        supabase.table("predictions")
+        .select("*, stock_pool(name)")
+        .eq("user_id", user_id)
+        .order("created_at", desc=True)
+        .limit(limit)
+        .execute()
+    )
+    return result.data or []
+
+
+async def get_pending_predictions():
+    result = (
+        supabase.table("predictions")
+        .select("*")
+        .eq("result", "pending")
+        .execute()
+    )
+    return result.data or []
+
+
+async def resolve_prediction(prediction_id: int, price_at_close: float, result: str, xp_earned: int):
+    from datetime import datetime, timezone
+    supabase.table("predictions").update({
+        "price_at_close": price_at_close,
+        "result": result,
+        "xp_earned": xp_earned,
+        "resolved_at": datetime.now(timezone.utc).isoformat(),
+    }).eq("id", prediction_id).execute()
