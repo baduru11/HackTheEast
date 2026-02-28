@@ -4,7 +4,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 
-from app.services.pipeline import ingest_finnhub, ingest_gnews, process_pending_articles
+from app.services.pipeline import ingest_finnhub, ingest_gnews, process_pending_articles, recover_stuck_articles
 from app.services.gauge import process_gauge_decay
 from app.services.xp import award_passive_xp
 from app.db.supabase import refresh_leaderboards
@@ -25,6 +25,12 @@ def get_adaptive_interval_minutes() -> int:
 
 
 scheduler = AsyncIOScheduler()
+
+
+async def process_pending_job():
+    """Proper async wrapper for processing pending articles."""
+    await recover_stuck_articles()
+    await process_pending_articles(batch_size=5)
 
 
 async def finnhub_adaptive_job():
@@ -60,7 +66,7 @@ def setup_scheduler():
 
     # Process pending articles every 5 min
     scheduler.add_job(
-        lambda: process_pending_articles(batch_size=5),
+        process_pending_job,
         IntervalTrigger(minutes=5),
         id="process_pending",
         name="Process pending articles (scrape + LLM)",

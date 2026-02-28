@@ -68,63 +68,98 @@ async def ingest_gnews():
     return saved_count
 
 
+async def recover_stuck_articles():
+    """Reset articles stuck in scraping/generating for more than 10 minutes."""
+    from datetime import datetime, timedelta, timezone
+
+    cutoff = (datetime.now(timezone.utc) - timedelta(minutes=10)).isoformat()
+
+    for status in ("scraping", "generating"):
+        stuck, _ = await db.get_articles(status=status, page=1, limit=50)
+        recovered = 0
+        for article in stuck:
+            updated = article.get("updated_at") or article.get("created_at", "")
+            if updated and updated < cutoff:
+                await db.update_article(article["id"], {"processing_status": "pending"})
+                recovered += 1
+        if recovered:
+            print(f"Recovered {recovered} articles stuck in '{status}'")
+
+
 async def process_pending_articles(batch_size: int = 5):
     """Scrape and generate AI content for pending articles."""
     articles, _ = await db.get_articles(status="pending", page=1, limit=batch_size)
 
+    done = 0
+    failed = 0
     for article in articles:
         article_id = article["id"]
+        try:
+            # Step 1: Scrape
+            await db.update_article(article_id, {"processing_status": "scraping"})
+            scraped = await scraper.scrape_article(article["original_url"])
 
-        # Step 1: Scrape
-        await db.update_article(article_id, {"processing_status": "scraping"})
-        scraped = await scraper.scrape_article(article["original_url"])
+            if not scraped:
+                await db.update_article(article_id, {"processing_status": "failed"})
+                failed += 1
+                continue
 
-        if not scraped:
-            await db.update_article(article_id, {"processing_status": "failed"})
-            continue
+            raw_text = scraped.get("text", "")
+            if not raw_text or len(raw_text) < 100:
+                await db.update_article(article_id, {"processing_status": "failed"})
+                failed += 1
+                continue
 
-        raw_text = scraped.get("text", "")
-        author = scraped.get("author")
-        await db.update_article(article_id, {
-            "raw_content": raw_text,
-            "author": author,
-            "processing_status": "generating",
-        })
+            author = scraped.get("author")
+            await db.update_article(article_id, {
+                "raw_content": raw_text,
+                "author": author,
+                "processing_status": "generating",
+            })
 
-        # Step 2: LLM generate
-        result = await llm.generate_article_content(article["headline"], raw_text)
+            # Step 2: LLM generate
+            result = await llm.generate_article_content(article["headline"], raw_text)
 
-        if not result:
-            await db.update_article(article_id, {"processing_status": "failed"})
-            continue
+            if not result:
+                await db.update_article(article_id, {"processing_status": "failed"})
+                failed += 1
+                continue
 
-        # Save AI content
-        await db.update_article(article_id, {
-            "ai_summary": result.summary,
-            "ai_tutorial": result.tutorial,
-            "processing_status": "done",
-        })
+            # Save AI content
+            await db.update_article(article_id, {
+                "ai_summary": result.summary,
+                "ai_tutorial": result.tutorial,
+                "processing_status": "done",
+            })
 
-        # Save sectors
-        if result.sectors:
-            sectors = await db.get_all_sectors()
-            sector_map = {s["slug"]: s["id"] for s in sectors}
-            sector_ids = [sector_map[s] for s in result.sectors if s in sector_map]
-            if sector_ids:
-                # Check for existing sector mappings first
-                existing = article.get("article_sectors", [])
-                existing_ids = {s.get("sector_id") for s in existing} if existing else set()
-                new_ids = [sid for sid in sector_ids if sid not in existing_ids]
-                if new_ids:
-                    await db.insert_article_sectors(article_id, new_ids)
+            # Save sectors
+            if result.sectors:
+                sectors = await db.get_all_sectors()
+                sector_map = {s["slug"]: s["id"] for s in sectors}
+                sector_ids = [sector_map[s] for s in result.sectors if s in sector_map]
+                if sector_ids:
+                    existing = article.get("article_sectors", [])
+                    existing_ids = {s.get("sector_id") for s in existing} if existing else set()
+                    new_ids = [sid for sid in sector_ids if sid not in existing_ids]
+                    if new_ids:
+                        await db.insert_article_sectors(article_id, new_ids)
 
-        # Save quiz
-        await db.insert_quiz(article_id, [q.model_dump() for q in result.questions])
+            # Save quiz
+            await db.insert_quiz(article_id, [q.model_dump() for q in result.questions])
 
-        # Notify users who favorite these sectors
-        await _notify_sector_users(article_id, article["headline"])
+            # Notify users who favorite these sectors
+            await _notify_sector_users(article_id, article["headline"])
+            done += 1
 
-    print(f"Processed {len(articles)} articles")
+        except Exception as e:
+            print(f"Pipeline error for article {article_id}: {e}")
+            try:
+                await db.update_article(article_id, {"processing_status": "failed"})
+            except Exception:
+                pass
+            failed += 1
+
+    print(f"Processed {len(articles)} articles: {done} done, {failed} failed")
 
 
 async def _notify_sector_users(article_id: int, headline: str):
