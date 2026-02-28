@@ -96,16 +96,22 @@ async def _process_single_article(article: dict) -> bool:
         await db.update_article(article_id, {"processing_status": "scraping"})
         scraped = await scraper.scrape_article(article["original_url"])
 
-        if not scraped:
-            await db.update_article(article_id, {"processing_status": "failed"})
-            return False
+        raw_text = scraped.get("text", "") if scraped else ""
+        og_image = scraped.get("image") if scraped else None
+        author = scraped.get("author") if scraped else None
 
-        raw_text = scraped.get("text", "")
+        # Update image if we got a better one from og:image
+        if og_image and og_image != article.get("image_url"):
+            await db.update_article(article_id, {"image_url": og_image})
+
+        # Fall back to snippet if scraping failed or got too little text
         if not raw_text or len(raw_text) < 100:
+            raw_text = article.get("snippet", "")
+
+        if not raw_text or len(raw_text) < 30:
             await db.update_article(article_id, {"processing_status": "failed"})
             return False
 
-        author = scraped.get("author")
         await db.update_article(article_id, {
             "raw_content": raw_text,
             "author": author,

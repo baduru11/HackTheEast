@@ -1,4 +1,5 @@
 import asyncio
+import re
 from concurrent.futures import ThreadPoolExecutor
 
 import httpx
@@ -7,12 +8,27 @@ import trafilatura
 executor = ThreadPoolExecutor(max_workers=4)
 
 
+def _extract_og_image(html: str) -> str | None:
+    """Extract og:image from HTML meta tags."""
+    match = re.search(
+        r'<meta[^>]+property=["\']og:image["\'][^>]+content=["\']([^"\']+)["\']',
+        html, re.IGNORECASE,
+    )
+    if not match:
+        match = re.search(
+            r'<meta[^>]+content=["\']([^"\']+)["\'][^>]+property=["\']og:image["\']',
+            html, re.IGNORECASE,
+        )
+    return match.group(1) if match else None
+
+
 def _extract_article(html: str) -> dict | None:
     """Synchronous trafilatura extraction (runs in thread pool)."""
     result = trafilatura.extract(
         html,
-        no_fallback=True,
-        favor_precision=True,
+        no_fallback=False,
+        favor_precision=False,
+        favor_recall=True,
         include_comments=False,
         include_tables=False,
         output_format="json",
@@ -20,7 +36,12 @@ def _extract_article(html: str) -> dict | None:
     )
     if result:
         import json
-        return json.loads(result)
+        parsed = json.loads(result)
+        if not parsed.get("image"):
+            parsed["image"] = _extract_og_image(html)
+        return parsed
+
+    # Fallback: try to get og:image even if extraction fails
     return None
 
 
@@ -30,7 +51,7 @@ async def scrape_article(url: str) -> dict | None:
         async with httpx.AsyncClient(
             timeout=30,
             follow_redirects=True,
-            headers={"User-Agent": "Mozilla/5.0 (compatible; FinaMeter/1.0)"},
+            headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"},
         ) as client:
             response = await client.get(url)
             response.raise_for_status()
@@ -38,6 +59,16 @@ async def scrape_article(url: str) -> dict | None:
 
         loop = asyncio.get_event_loop()
         extracted = await loop.run_in_executor(executor, _extract_article, html)
+
+        # Attach og:image even if trafilatura didn't find one
+        if extracted and not extracted.get("image"):
+            extracted["image"] = _extract_og_image(html)
+
+        # If extraction failed entirely, return minimal data with og:image
+        if not extracted:
+            og_image = _extract_og_image(html)
+            return {"text": None, "image": og_image}
+
         return extracted
     except Exception as e:
         print(f"Scraper error ({url}): {e}")
