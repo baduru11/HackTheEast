@@ -93,17 +93,12 @@ async def get_articles_by_sector_ids(
     page: int = 1,
     limit: int = 20,
 ):
-    article_ids_result = supabase.table("article_sectors").select("article_id").in_("sector_id", sector_ids).execute()
-    ids = list(set(r["article_id"] for r in article_ids_result.data))
-    if not ids:
-        return [], 0
-
     offset = (page - 1) * limit
     result = (
         supabase.table("articles")
-        .select("*, article_sectors(sector_id, sectors(name, slug, category))", count="exact")
+        .select("*, article_sectors!inner(sector_id, sectors(name, slug, category))", count="exact")
         .eq("processing_status", "done")
-        .in_("id", ids)
+        .in_("article_sectors.sector_id", sector_ids)
         .order("published_at", desc=True)
         .range(offset, offset + limit - 1)
         .execute()

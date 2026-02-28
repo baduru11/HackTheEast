@@ -1,10 +1,28 @@
 "use client";
 
-import { useEffect, useState, useRef, useCallback } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { usePathname, useRouter } from "next/navigation";
+import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/hooks/useAuth";
 import { apiFetch } from "@/lib/api";
 import type { Favorite } from "@/types";
+
+function useDecayCountdown(): string {
+  const [label, setLabel] = useState("");
+  useEffect(() => {
+    function tick() {
+      const INTERVAL = 30 * 60 * 1000;
+      const remaining = INTERVAL - (Date.now() % INTERVAL);
+      const m = Math.floor(remaining / 60000);
+      const s = Math.floor((remaining % 60000) / 1000);
+      setLabel(`${m}:${s.toString().padStart(2, "0")}`);
+    }
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, []);
+  return label;
+}
 
 function barColor(score: number): string {
   if (score < 34) return "bg-red-500";
@@ -31,8 +49,7 @@ export default function SectorHealthWidget() {
 
   const [favorites, setFavorites] = useState<Favorite[]>([]);
   const [loaded, setLoaded] = useState(false);
-  const [visible, setVisible] = useState(true);
-  const scrollTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [collapsed, setCollapsed] = useState(false);
 
   // Fetch favorites
   useEffect(() => {
@@ -45,21 +62,6 @@ export default function SectorHealthWidget() {
       .finally(() => setLoaded(true));
   }, [session, authLoading]);
 
-  // Scroll-based auto-hide
-  useEffect(() => {
-    const onScroll = () => {
-      setVisible(false);
-      if (scrollTimer.current) clearTimeout(scrollTimer.current);
-      scrollTimer.current = setTimeout(() => setVisible(true), 1000);
-    };
-
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => {
-      window.removeEventListener("scroll", onScroll);
-      if (scrollTimer.current) clearTimeout(scrollTimer.current);
-    };
-  }, []);
-
   const handleClick = useCallback(
     (fav: Favorite) => {
       const base = fav.sectors.category === "world" ? "/world" : "/markets";
@@ -67,6 +69,8 @@ export default function SectorHealthWidget() {
     },
     [router]
   );
+
+  const decayCountdown = useDecayCountdown();
 
   // Hide conditions: profile page, not logged in, no favorites, still loading
   if (pathname.startsWith("/profile")) return null;
@@ -77,39 +81,92 @@ export default function SectorHealthWidget() {
   const sorted = [...favorites].sort((a, b) => a.gauge_score - b.gauge_score);
 
   return (
-    <div
-      className="fixed bottom-4 right-4 z-40 w-72 glass rounded-xl p-3 transition-opacity duration-300"
-      style={{ opacity: visible ? 1 : 0, pointerEvents: visible ? "auto" : "none" }}
-    >
-      <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-2">
-        Sector Health
-      </p>
+    <div className="fixed bottom-4 right-4 z-40 w-72">
+      {/* Fina mascot floating above the widget */}
+      <AnimatePresence>
+        {!collapsed && (
+          <motion.img
+            src="/fina/default.webp"
+            alt="Fina"
+            initial={{ opacity: 0, y: 0 }}
+            animate={{ opacity: 1, y: [0, -10, 0] }}
+            exit={{ opacity: 0, y: 0 }}
+            transition={{
+              opacity: { duration: 0.3 },
+              y: { duration: 3.5, repeat: Infinity, ease: "easeInOut" },
+            }}
+            className="absolute -top-24 right-1 w-24 h-24 object-contain drop-shadow-[0_4px_20px_rgba(0,0,0,0.6)] pointer-events-none select-none brightness-110"
+          />
+        )}
+      </AnimatePresence>
 
-      <div className="space-y-2">
-        {sorted.map((fav) => (
-          <button
-            key={fav.sector_id}
-            onClick={() => handleClick(fav)}
-            className="w-full flex items-center gap-2 group hover:bg-white/[0.03] rounded-md px-1 py-0.5 transition-colors"
+      <div className="glass rounded-xl overflow-hidden">
+        {/* Header — always visible */}
+        <button
+          onClick={() => setCollapsed((c) => !c)}
+          className="w-full flex items-center justify-between px-3 py-2 hover:bg-white/[0.03] transition-colors"
+        >
+          <div className="flex items-center gap-2">
+            <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">
+              Sector Health
+            </p>
+            <span className="flex items-center gap-1 text-[10px] text-amber-400/80 font-mono">
+              <svg className="w-2.5 h-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
+              </svg>
+              {decayCountdown}
+            </span>
+          </div>
+          <svg
+            className="w-3.5 h-3.5 text-gray-500 transition-transform duration-200"
+            style={{ transform: collapsed ? "rotate(180deg)" : "rotate(0deg)" }}
+            viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+            strokeLinecap="round" strokeLinejoin="round"
           >
-            <span
-              className={`text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded border w-24 text-center truncate shrink-0 ${
-                CATEGORY_COLORS[fav.sectors.category] || FALLBACK_COLOR
-              }`}
+            <polyline points="6 9 12 15 18 9" />
+          </svg>
+        </button>
+
+        {/* Collapsible body */}
+        <AnimatePresence initial={false}>
+          {!collapsed && (
+            <motion.div
+              key="body"
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.2, ease: "easeInOut" }}
+              className="overflow-hidden"
             >
-              {fav.sectors.name}
-            </span>
-            <div className="flex-1 h-1.5 bg-gray-800 rounded-full overflow-hidden">
-              <div
-                className={`h-full rounded-full transition-all duration-700 ${barColor(fav.gauge_score)} ${barTrackGlow(fav.gauge_score)}`}
-                style={{ width: `${Math.max(2, fav.gauge_score)}%` }}
-              />
-            </div>
-            <span className="text-[10px] text-gray-500 w-6 text-right font-mono">
-              {fav.gauge_score}
-            </span>
-          </button>
-        ))}
+              <div className="space-y-2 px-3 pb-3">
+                {sorted.map((fav) => (
+                  <button
+                    key={fav.sector_id}
+                    onClick={() => handleClick(fav)}
+                    className="w-full flex items-center gap-2 group hover:bg-white/[0.03] rounded-md px-1 py-0.5 transition-colors"
+                  >
+                    <span
+                      className={`text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded border w-24 text-center truncate shrink-0 ${
+                        CATEGORY_COLORS[fav.sectors.category] || FALLBACK_COLOR
+                      }`}
+                    >
+                      {fav.sectors.name}
+                    </span>
+                    <div className="flex-1 h-1.5 bg-gray-800 rounded-full overflow-hidden">
+                      <div
+                        className={`h-full rounded-full transition-all duration-700 ${barColor(fav.gauge_score)} ${barTrackGlow(fav.gauge_score)}`}
+                        style={{ width: `${Math.max(2, fav.gauge_score)}%` }}
+                      />
+                    </div>
+                    <span className="text-[10px] text-gray-500 w-6 text-right font-mono">
+                      {fav.gauge_score}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </div>
   );

@@ -14,7 +14,14 @@ async def process_gauge_decay():
 
         # Count unread articles older than 30 min in this sector
         pending = await _count_pending_articles(user_id, sector_id)
-        decay = min(pending * 5, 15)  # Cap at -15
+        if pending >= 6:
+            decay = 15
+        elif pending >= 4:
+            decay = 10
+        elif pending >= 2:
+            decay = 5
+        else:
+            decay = 0
 
         # Weekend modifier
         if datetime.utcnow().weekday() >= 5:
@@ -54,7 +61,7 @@ async def _count_pending_articles(user_id: str, sector_id: int) -> int:
     quiz_ids = [q["id"] for q in quizzes.data]
 
     if not quiz_ids:
-        return min(len(article_ids), 3)
+        return min(len(article_ids), 6)
 
     attempts = supabase.table("quiz_attempts").select("quiz_id").eq(
         "user_id", user_id
@@ -62,16 +69,16 @@ async def _count_pending_articles(user_id: str, sector_id: int) -> int:
 
     completed_quiz_ids = {a["quiz_id"] for a in attempts.data}
     pending_count = sum(1 for q in quizzes.data if q["id"] not in completed_quiz_ids)
-    return min(pending_count, 3)
+    return min(pending_count, 6)
 
 
 async def calculate_gauge_gain(score: int, total: int) -> int:
     """Calculate gauge points earned from a quiz."""
     if score == total:
-        return 10
+        return 15
     elif score >= total - 1:
-        return 8
+        return 12
     elif score >= total - 2:
-        return 6
+        return 9
     else:
-        return 3
+        return 5

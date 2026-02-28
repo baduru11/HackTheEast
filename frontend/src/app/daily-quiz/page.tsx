@@ -6,6 +6,7 @@ import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { useAuth } from "@/hooks/useAuth";
 import { FadeInUp } from "@/components/shared/MotionWrappers";
 import type { DailyQuiz, DailyQuizResult, DailyQuizExplanation } from "@/types";
+import FinaMascot from "@/components/quiz/FinaMascot";
 
 type Feedback = { is_correct: boolean; correct_answer: number; explanation: string };
 
@@ -290,6 +291,7 @@ export default function DailyQuizPage() {
 
   /* ── Quiz view ── */
   const question = questions[current];
+  const finaExpression = feedback ? (feedback.is_correct ? "happy" : "angry") : "default";
 
   const questionVariants = {
     enter: () => ({ x: 80, opacity: 0 }),
@@ -309,6 +311,7 @@ export default function DailyQuizPage() {
 
   return (
     <FadeInUp>
+      <FinaMascot expression={finaExpression} />
       <div className="max-w-2xl mx-auto px-4 py-8">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">

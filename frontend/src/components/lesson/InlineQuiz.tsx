@@ -6,6 +6,7 @@ import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { useAuth } from "@/hooks/useAuth";
 import type { Quiz, QuestionFeedback } from "@/types";
 import SectionHeading from "./SectionHeading";
+import FinaMascot from "@/components/quiz/FinaMascot";
 
 interface InlineQuizProps {
   articleId: number;
@@ -180,6 +181,7 @@ export default function InlineQuiz({ articleId }: InlineQuizProps) {
   /* ── Quiz view ── */
   const question = questions[current];
   const questionType = (question as { question_type?: string | null }).question_type;
+  const finaExpression = feedback ? (feedback.is_correct ? "happy" : "angry") : "default";
 
   const questionVariants = {
     enter: (dir: number) => ({ x: dir > 0 ? 80 : -80, opacity: 0 }),
@@ -199,6 +201,7 @@ export default function InlineQuiz({ articleId }: InlineQuizProps) {
 
   return (
     <section>
+      <FinaMascot expression={finaExpression} />
       <SectionHeading number="06" title="Quiz" />
       <div className="glass rounded-xl p-6">
         {/* Progress */}

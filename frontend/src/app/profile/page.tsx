@@ -8,6 +8,23 @@ import GaugeMeter from "@/components/profile/GaugeMeter";
 import WeeklyReports from "@/components/profile/WeeklyReports";
 import { FadeInUp, StaggerList, StaggerItem } from "@/components/shared/MotionWrappers";
 
+function useDecayCountdown(): string {
+  const [label, setLabel] = useState("");
+  useEffect(() => {
+    function tick() {
+      const INTERVAL = 30 * 60 * 1000;
+      const remaining = INTERVAL - (Date.now() % INTERVAL);
+      const m = Math.floor(remaining / 60000);
+      const s = Math.floor((remaining % 60000) / 1000);
+      setLabel(`${m}:${s.toString().padStart(2, "0")}`);
+    }
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, []);
+  return label;
+}
+
 interface DashboardData {
   profile: {
     id: string;
@@ -27,6 +44,7 @@ interface DashboardData {
 }
 
 export default function ProfilePage() {
+  const decayCountdown = useDecayCountdown();
   const { user, session, loading: authLoading } = useAuth();
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -194,7 +212,15 @@ export default function ProfilePage() {
         </div>
 
         {/* Sectors */}
-        <h2 className="text-lg font-bold text-white mb-4">My Sectors</h2>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-bold text-white">My Sectors</h2>
+          <span className="flex items-center gap-1.5 text-xs text-amber-400/80 font-mono bg-amber-400/5 border border-amber-400/10 px-2.5 py-1 rounded-full">
+            <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
+            </svg>
+            Next decay {decayCountdown}
+          </span>
+        </div>
         {data.favorites.length === 0 ? (
           <div className="text-center py-8 bg-gray-900 border border-gray-800 rounded-xl">
             <p className="text-gray-400 mb-3">No sectors selected yet</p>

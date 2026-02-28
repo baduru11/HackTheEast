@@ -6,6 +6,7 @@ import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { useAuth } from "@/hooks/useAuth";
 import { FadeInUp } from "@/components/shared/MotionWrappers";
 import type { Quiz, QuestionFeedback } from "@/types";
+import FinaMascot from "@/components/quiz/FinaMascot";
 
 function ScoreRing({ score, total }: { score: number; total: number }) {
   const pct = total > 0 ? score / total : 0;
@@ -298,6 +299,7 @@ export default function QuizPage({ params }: { params: Promise<{ id: string }> }
   /* ── Quiz view ── */
   const question = questions[current];
   const questionType = (question as { question_type?: string | null }).question_type;
+  const finaExpression = feedback ? (feedback.is_correct ? "happy" : "angry") : "default";
 
   const questionVariants = {
     enter: (dir: number) => ({ x: dir > 0 ? 80 : -80, opacity: 0 }),
@@ -371,6 +373,7 @@ export default function QuizPage({ params }: { params: Promise<{ id: string }> }
 
   return (
     <FadeInUp>
+      <FinaMascot expression={finaExpression} />
       <div className="max-w-2xl mx-auto px-4 py-8">
         {/* Progress */}
         <div className="mb-6">
