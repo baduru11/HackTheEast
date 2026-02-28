@@ -249,7 +249,7 @@ export default function ProfilePage() {
 
         {/* Weekly Reports */}
         <h2 id="weekly-reports" className="text-lg font-bold text-white mb-4 mt-8">Weekly Reports</h2>
-        <WeeklyReports token={session.access_token} />
+        <WeeklyReports token={session!.access_token} />
       </div>
     </FadeInUp>
   );
