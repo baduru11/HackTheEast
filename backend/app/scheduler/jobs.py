@@ -1,154 +1,151 @@
+import asyncio
 from datetime import datetime, timedelta
 
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from apscheduler.triggers.cron import CronTrigger
-from apscheduler.triggers.interval import IntervalTrigger
-
-from app.services.pipeline import ingest_finnhub, ingest_gnews_regions, ingest_gnews_markets, ingest_rss, process_pending_articles, recover_stuck_articles
+from app.services.pipeline import (
+    ingest_finnhub,
+    ingest_gnews_regions,
+    ingest_gnews_markets,
+    ingest_rss,
+    process_pending_articles,
+    recover_stuck_articles,
+)
 from app.services.gauge import process_gauge_decay
 from app.services.xp import award_passive_xp
 from app.db.supabase import refresh_leaderboards
 from app.services.predict import resolve_pending_predictions
 
+# Exported so health endpoint can inspect task state
+_tasks: list[asyncio.Task] = []
+
 
 def get_adaptive_interval_minutes() -> int:
     """Return polling interval based on market hours (ET)."""
     now = datetime.utcnow()
-    # Convert UTC to ET (approximate, UTC-5)
     et_hour = (now.hour - 5) % 24
-
-    if 9 <= et_hour < 16:  # Market hours 9:30-4 (using 9-16 for simplicity)
+    if 9 <= et_hour < 16:
         return 5
-    elif 7 <= et_hour < 9 or 16 <= et_hour < 20:  # Pre/post market
+    elif 7 <= et_hour < 9 or 16 <= et_hour < 20:
         return 10
-    else:  # Off hours
+    else:
         return 30
 
 
-scheduler = AsyncIOScheduler()
+async def _run_periodically(name: str, coro_func, interval_seconds: float, initial_delay: float = 10.0):
+    """Run a coroutine function on a fixed interval. Logs errors but never stops."""
+    await asyncio.sleep(initial_delay)
+    while True:
+        try:
+            print(f"[scheduler] running: {name}")
+            await coro_func()
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:
+            print(f"[scheduler] '{name}' error: {e}")
+        await asyncio.sleep(interval_seconds)
 
 
-async def process_pending_job():
-    """Proper async wrapper for processing pending articles."""
+async def _finnhub_adaptive_job():
+    await ingest_finnhub()
+    await process_pending_articles(batch_size=15)
+
+
+async def _process_pending_job():
     await recover_stuck_articles()
     await process_pending_articles(batch_size=15)
 
 
-async def rss_ingest_job():
-    """Ingest articles from free RSS feeds."""
-    await ingest_rss()
+async def _resolve_predictions_daily():
+    """Fire at 21:05 UTC on weekdays (market close ET)."""
+    while True:
+        now = datetime.utcnow()
+        next_run = now.replace(hour=21, minute=5, second=0, microsecond=0)
+        if next_run <= now:
+            next_run += timedelta(days=1)
+        while next_run.weekday() >= 5:   # skip Saturday (5) and Sunday (6)
+            next_run += timedelta(days=1)
+        await asyncio.sleep((next_run - now).total_seconds())
+        try:
+            print("[scheduler] running: resolve_predictions")
+            await resolve_pending_predictions()
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:
+            print(f"[scheduler] 'resolve_predictions' error: {e}")
 
 
-async def finnhub_adaptive_job():
-    """Adaptively poll Finnhub based on market hours."""
-    await ingest_finnhub()
-    await process_pending_articles(batch_size=15)
-
-    # Reschedule with new interval
-    interval = get_adaptive_interval_minutes()
-    scheduler.reschedule_job("finnhub_poll", trigger=IntervalTrigger(minutes=interval))
-    print(f"Next Finnhub poll in {interval} min")
-
-
-def setup_scheduler():
-    """Configure and return the scheduler with all jobs."""
-    # Finnhub adaptive polling (starts at 15 min, self-adjusts)
-    scheduler.add_job(
-        finnhub_adaptive_job,
-        IntervalTrigger(minutes=15),
-        id="finnhub_poll",
-        name="Finnhub adaptive news poll",
-        replace_existing=True,
-    )
-
-    # RSS feeds every 30 minutes (free, no rate limits)
-    scheduler.add_job(
-        rss_ingest_job,
-        IntervalTrigger(minutes=30),
-        id="rss_poll",
-        name="RSS free news feeds poll",
-        replace_existing=True,
-    )
-
-    # GNews alternates: regions on even hours, markets on odd hours
-    # 7 calls × 6 cycles each = 42 + 42 = 84 calls/day (under 100)
-    scheduler.add_job(
-        ingest_gnews_regions,
-        IntervalTrigger(hours=4),
-        id="gnews_regions",
-        name="GNews world/region news poll",
-        replace_existing=True,
-    )
-
-    scheduler.add_job(
-        ingest_gnews_markets,
-        IntervalTrigger(hours=4, start_date=datetime.utcnow().replace(minute=0, second=0) + timedelta(hours=2)),
-        id="gnews_markets",
-        name="GNews market sector news poll",
-        replace_existing=True,
-    )
-
-    # Process pending articles every 2 min (bumped up temporarily)
-    scheduler.add_job(
-        process_pending_job,
-        IntervalTrigger(minutes=2),
-        id="process_pending",
-        name="Process pending articles (scrape + LLM)",
-        replace_existing=True,
-    )
-
-    # Gauge decay every 10 min
-    scheduler.add_job(
-        process_gauge_decay,
-        IntervalTrigger(minutes=10),
-        id="gauge_decay",
-        name="Gauge decay calculation",
-        replace_existing=True,
-    )
-
-    # Passive XP every 10 min
-    scheduler.add_job(
-        award_passive_xp,
-        IntervalTrigger(minutes=10),
-        id="passive_xp",
-        name="Passive XP for gauge=100 users",
-        replace_existing=True,
-    )
-
-    # Leaderboard refresh every 5 min
-    scheduler.add_job(
-        refresh_leaderboards,
-        IntervalTrigger(minutes=5),
-        id="refresh_lb",
-        name="Refresh leaderboard materialized views",
-        replace_existing=True,
-    )
-
-    # Notification cleanup daily at 3 AM UTC
-    scheduler.add_job(
-        _cleanup_notifications,
-        CronTrigger(hour=3, minute=0),
-        id="cleanup_notifications",
-        name="Delete expired notifications",
-        replace_existing=True,
-    )
-
-    # Resolve stock predictions at 16:05 ET (21:05 UTC) on weekdays
-    scheduler.add_job(
-        resolve_pending_predictions,
-        CronTrigger(hour=21, minute=5, day_of_week="mon-fri"),
-        id="resolve_predictions",
-        name="Resolve pending stock predictions",
-        replace_existing=True,
-    )
-
-    return scheduler
+async def _cleanup_notifications_daily():
+    """Fire daily at 03:00 UTC."""
+    while True:
+        now = datetime.utcnow()
+        next_run = now.replace(hour=3, minute=0, second=0, microsecond=0)
+        if next_run <= now:
+            next_run += timedelta(days=1)
+        await asyncio.sleep((next_run - now).total_seconds())
+        try:
+            print("[scheduler] running: cleanup_notifications")
+            from app.dependencies import supabase
+            supabase.table("notifications").delete().lt(
+                "expires_at", datetime.utcnow().isoformat()
+            ).execute()
+            print("[scheduler] cleaned up expired notifications")
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:
+            print(f"[scheduler] 'cleanup_notifications' error: {e}")
 
 
-async def _cleanup_notifications():
-    """Delete expired notifications."""
-    from app.dependencies import supabase
-    supabase.table("notifications").delete().lt(
-        "expires_at", datetime.utcnow().isoformat()
-    ).execute()
-    print("Cleaned up expired notifications")
+def setup_scheduler() -> list[asyncio.Task]:
+    """
+    Create all background asyncio tasks.
+    Must be called from inside a running event loop (e.g. FastAPI lifespan).
+    Returns the list of tasks so the caller can cancel them on shutdown.
+    """
+    global _tasks
+    _tasks = [
+        # Process pending articles every 2 min (runs 10 s after startup)
+        asyncio.create_task(
+            _run_periodically("process_pending", _process_pending_job, 2 * 60, initial_delay=10),
+            name="process_pending",
+        ),
+        # Refresh leaderboard every 5 min
+        asyncio.create_task(
+            _run_periodically("refresh_lb", refresh_leaderboards, 5 * 60, initial_delay=15),
+            name="refresh_lb",
+        ),
+        # Gauge decay every 10 min
+        asyncio.create_task(
+            _run_periodically("gauge_decay", process_gauge_decay, 10 * 60, initial_delay=20),
+            name="gauge_decay",
+        ),
+        # Passive XP every 10 min
+        asyncio.create_task(
+            _run_periodically("passive_xp", award_passive_xp, 10 * 60, initial_delay=25),
+            name="passive_xp",
+        ),
+        # Finnhub adaptive poll every 15 min
+        asyncio.create_task(
+            _run_periodically("finnhub_poll", _finnhub_adaptive_job, 15 * 60, initial_delay=30),
+            name="finnhub_poll",
+        ),
+        # RSS feeds every 30 min
+        asyncio.create_task(
+            _run_periodically("rss_poll", ingest_rss, 30 * 60, initial_delay=45),
+            name="rss_poll",
+        ),
+        # GNews regions every 4 h (starts 60 s after boot)
+        asyncio.create_task(
+            _run_periodically("gnews_regions", ingest_gnews_regions, 4 * 3600, initial_delay=60),
+            name="gnews_regions",
+        ),
+        # GNews markets every 4 h, offset +2 h so they don't overlap
+        asyncio.create_task(
+            _run_periodically("gnews_markets", ingest_gnews_markets, 4 * 3600, initial_delay=2 * 3600),
+            name="gnews_markets",
+        ),
+        # Stock prediction resolution at market close weekdays
+        asyncio.create_task(_resolve_predictions_daily(), name="resolve_predictions"),
+        # Notification cleanup daily at 3 AM UTC
+        asyncio.create_task(_cleanup_notifications_daily(), name="cleanup_notifications"),
+    ]
+    print(f"[scheduler] started {len(_tasks)} background tasks")
+    return _tasks

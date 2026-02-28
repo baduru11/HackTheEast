@@ -1,3 +1,4 @@
+import asyncio
 import os
 from contextlib import asynccontextmanager
 
@@ -10,11 +11,12 @@ from app.routers import articles, quizzes, profile, favorites, leaderboard, noti
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    sched = setup_scheduler()
-    sched.start()
-    print("Scheduler started")
+    tasks = setup_scheduler()
     yield
-    sched.shutdown()
+    # Cancel all background tasks on shutdown
+    for task in tasks:
+        task.cancel()
+    await asyncio.gather(*tasks, return_exceptions=True)
     print("Scheduler stopped")
 
 
@@ -46,12 +48,16 @@ app.include_router(predict.router)
 
 @app.get("/api/v1/health")
 async def health():
-    from app.scheduler.jobs import scheduler
-    jobs = [
-        {"id": j.id, "name": j.name, "next_run": str(j.next_run_time)}
-        for j in scheduler.get_jobs()
+    from app.scheduler.jobs import _tasks
+    task_info = [
+        {
+            "name": t.get_name(),
+            "done": t.done(),
+            "cancelled": t.cancelled(),
+        }
+        for t in _tasks
     ]
-    return {"status": "ok", "scheduler_running": scheduler.running, "jobs": jobs}
+    return {"status": "ok", "tasks": task_info}
 
 
 @app.post("/api/v1/health/trigger-ingest")
@@ -59,5 +65,5 @@ async def trigger_ingest():
     """Manually trigger one ingestion cycle — for debugging."""
     from app.services.pipeline import ingest_rss, process_pending_articles
     await ingest_rss()
-    processed = await process_pending_articles(batch_size=5)
+    await process_pending_articles(batch_size=5)
     return {"status": "ok", "triggered": True}
