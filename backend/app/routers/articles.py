@@ -144,7 +144,7 @@ async def _fix_sources():
 
 
 @router.get("/debug/reprocess-lessons")
-async def debug_reprocess_lessons(background_tasks: BackgroundTasks, user_id: str = Depends(get_current_user)):
+async def debug_reprocess_lessons(background_tasks: BackgroundTasks):
     """Re-process existing articles with the new lesson prompt (debug mode only)."""
     if not IS_DEBUG:
         raise HTTPException(status_code=404, detail="Not found")
