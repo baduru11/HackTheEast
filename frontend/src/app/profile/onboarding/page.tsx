@@ -27,6 +27,7 @@ export default function OnboardingPage() {
   const router = useRouter();
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
 
   const toggle = (id: number) => {
     const next = new Set(selected);
@@ -38,16 +39,29 @@ export default function OnboardingPage() {
   const handleContinue = async () => {
     if (selected.size === 0) return;
     setSaving(true);
+    setError("");
 
+    let failed = 0;
     for (const sectorId of selected) {
-      await fetch("/api/v1/favorites", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${session?.access_token}`,
-        },
-        body: JSON.stringify({ sector_id: sectorId }),
-      });
+      try {
+        const res = await fetch("/api/v1/favorites", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${session?.access_token}`,
+          },
+          body: JSON.stringify({ sector_id: sectorId }),
+        });
+        if (!res.ok) failed++;
+      } catch {
+        failed++;
+      }
+    }
+
+    if (failed > 0) {
+      setError(`Failed to save ${failed} sector(s). Please try again.`);
+      setSaving(false);
+      return;
     }
 
     router.push("/profile");
@@ -99,6 +113,10 @@ export default function OnboardingPage() {
           ))}
         </div>
       </div>
+
+      {error && (
+        <p className="text-red-400 text-sm text-center mb-3">{error}</p>
+      )}
 
       <button
         onClick={handleContinue}

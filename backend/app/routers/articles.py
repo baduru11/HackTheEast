@@ -1,8 +1,28 @@
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Depends, Query
 
 from app.db import supabase as db
+from app.dependencies import get_current_user
 
 router = APIRouter(prefix="/api/v1/articles", tags=["articles"])
+
+
+@router.get("/feed")
+async def get_feed(
+    page: int = Query(1, ge=1),
+    limit: int = Query(20, ge=1, le=50),
+    user_id: str = Depends(get_current_user),
+):
+    favorites = await db.get_user_favorites(user_id)
+    if not favorites:
+        return {"success": True, "data": [], "meta": {"page": page, "limit": limit, "total": 0}}
+
+    sector_ids = [f["sector_id"] for f in favorites]
+    articles, total = await db.get_articles_by_sector_ids(sector_ids, page=page, limit=limit)
+    return {
+        "success": True,
+        "data": articles,
+        "meta": {"page": page, "limit": limit, "total": total},
+    }
 
 
 @router.get("")

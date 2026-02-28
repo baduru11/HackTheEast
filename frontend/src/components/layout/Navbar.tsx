@@ -43,6 +43,12 @@ export default function Navbar() {
             <NavDropdown label="World" items={WORLD_SECTORS} basePath="/world" />
             <NavDropdown label="Markets" items={MARKET_SECTORS} basePath="/markets" />
             <Link
+              href="/feed"
+              className="text-gray-300 hover:text-teal-400 transition-colors text-sm font-medium"
+            >
+              Feed
+            </Link>
+            <Link
               href="/leaderboard"
               className="text-gray-300 hover:text-teal-400 transition-colors text-sm font-medium"
             >
@@ -129,6 +135,13 @@ export default function Navbar() {
             </div>
           </div>
           <div className="border-t border-gray-800 pt-3">
+            <Link
+              href="/feed"
+              onClick={() => setMobileOpen(false)}
+              className="block text-sm text-gray-300 hover:text-teal-400 py-1"
+            >
+              Feed
+            </Link>
             <Link
               href="/leaderboard"
               onClick={() => setMobileOpen(false)}
