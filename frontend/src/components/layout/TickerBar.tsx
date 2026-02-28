@@ -3,14 +3,14 @@
 import { useTickerStream } from "@/hooks/useTickerStream";
 
 const INDICES = [
-  { symbol: "SPY", label: "S&P 500" },
-  { symbol: "DIA", label: "Dow Jones" },
-  { symbol: "QQQ", label: "Nasdaq" },
-  { symbol: "IWM", label: "Russell 2000" },
-  { symbol: "EWJ", label: "Nikkei 225" },
-  { symbol: "EWG", label: "DAX" },
-  { symbol: "EWU", label: "FTSE 100" },
-  { symbol: "FXI", label: "Hang Seng" },
+  { symbol: "^GSPC", label: "S&P 500" },
+  { symbol: "^DJI",  label: "Dow Jones" },
+  { symbol: "^IXIC", label: "Nasdaq" },
+  { symbol: "^RUT",  label: "Russell 2000" },
+  { symbol: "^N225", label: "Nikkei 225" },
+  { symbol: "^GDAXI",label: "DAX" },
+  { symbol: "^FTSE", label: "FTSE 100" },
+  { symbol: "^HSI",  label: "Hang Seng" },
 ];
 
 const SYMBOLS = INDICES.map((i) => i.symbol);
@@ -67,8 +67,10 @@ export default function TickerBar() {
               <span className="font-semibold text-gray-300">
                 {LABEL_MAP[t.symbol] || t.symbol}
               </span>
-              <span className="text-gray-400 font-mono">${t.price.toFixed(2)}</span>
-              <span className={`inline-flex items-center gap-0.5 ${t.change >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+              <span className="text-gray-400 font-mono">
+                {t.price.toLocaleString("en-US", { maximumFractionDigits: 2 })}
+              </span>
+              <span className={`inline-flex items-center gap-0.5 font-mono ${t.change >= 0 ? "text-emerald-400" : "text-red-400"}`}>
                 {t.change >= 0 ? <TriangleUp /> : <TriangleDown />}
                 {Math.abs(t.change).toFixed(2)}%
               </span>

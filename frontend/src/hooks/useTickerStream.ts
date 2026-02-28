@@ -21,31 +21,35 @@ export function useTickerStream(symbols: string[]) {
   const retryRef = useRef(0);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Fetch initial prices via backend proxy
+  // Fetch prices via backend proxy, refresh every 60s
   useEffect(() => {
-    async function fetchInitialQuotes() {
+    async function fetchQuotes() {
       try {
         const res = await fetch(
           `/api/v1/market/quotes?symbols=${symbols.join(",")}`
         );
         const json = await res.json();
         if (json.data) {
-          const initial: Record<string, TickerData> = {};
+          const updated: Record<string, TickerData> = {};
           for (const q of json.data) {
-            initial[q.ticker] = {
-              symbol: q.ticker,
-              price: q.price,
-              change: q.price_change_pct || 0,
-            };
+            if (q.ticker && q.price != null) {
+              updated[q.ticker] = {
+                symbol: q.ticker,
+                price: q.price,
+                change: q.price_change_pct || 0,
+              };
+            }
           }
-          setTickers(initial);
+          setTickers(updated);
         }
       } catch {
         // REST quotes unavailable — ticker bar shows loading state
       }
     }
 
-    fetchInitialQuotes();
+    fetchQuotes();
+    const interval = setInterval(fetchQuotes, 60_000);
+    return () => clearInterval(interval);
   }, []);
 
   // WebSocket for live updates via backend proxy
