@@ -145,20 +145,16 @@ async def get_quote(symbol: str) -> dict:
 
 
 async def get_candles(symbol: str, resolution: str, from_ts: int, to_ts: int) -> dict:
-    """Fetch candle data for charting."""
-    async with httpx.AsyncClient() as http:
-        resp = await http.get(
-            "https://finnhub.io/api/v1/stock/candle",
-            params={
-                "symbol": symbol,
-                "resolution": resolution,
-                "from": from_ts,
-                "to": to_ts,
-                "token": settings.finnhub_api_key,
-            },
+    """Fetch candle data for charting. Uses the SDK for consistency with other endpoints."""
+    loop = asyncio.get_event_loop()
+    try:
+        data = await loop.run_in_executor(
+            None,
+            lambda: client.stock_candles(symbol, resolution, from_ts, to_ts),
         )
-        resp.raise_for_status()
-        data = resp.json()
-        if data.get("s") == "no_data":
-            raise ValueError(f"No candle data available for {symbol}")
-        return data
+    except Exception as e:
+        raise RuntimeError(f"Finnhub candle API error for {symbol}: {e}")
+
+    if not data or data.get("s") == "no_data":
+        raise ValueError(f"No candle data available for {symbol}")
+    return data

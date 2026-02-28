@@ -132,6 +132,13 @@ async def get_friends(user_id: str = Depends(get_current_user)):
             "avatar_url": profile.get("avatar_url"),
             "total_xp": profile.get("total_xp", 0),
         })
+
+    # Attach sector breakdown
+    friend_ids = [f["id"] for f in friends if f["id"]]
+    sectors_map = await db.get_users_sector_breakdown(friend_ids)
+    for f in friends:
+        f["sectors"] = sectors_map.get(f["id"], [])
+
     return {"success": True, "data": friends}
 
 

@@ -13,7 +13,28 @@ interface LBEntry {
   sector_xp?: number;
   xp?: number;
   rank: number;
+  fav_sector?: string | null;
+  fav_sector_slug?: string | null;
+  fav_sector_pct?: number | null;
 }
+
+const SECTOR_COLORS: Record<string, string> = {
+  crypto:   "text-orange-400 bg-orange-400/10",
+  stocks:   "text-blue-400 bg-blue-400/10",
+  options:  "text-violet-400 bg-violet-400/10",
+  bonds:    "text-slate-400 bg-slate-400/10",
+  currency: "text-green-400 bg-green-400/10",
+  etfs:     "text-cyan-400 bg-cyan-400/10",
+  indices:  "text-indigo-400 bg-indigo-400/10",
+  sector:   "text-pink-400 bg-pink-400/10",
+  asia:     "text-rose-400 bg-rose-400/10",
+  americas: "text-sky-400 bg-sky-400/10",
+  europe:   "text-blue-300 bg-blue-300/10",
+  india:    "text-amber-400 bg-amber-400/10",
+  china:    "text-red-400 bg-red-400/10",
+  japan:    "text-fuchsia-400 bg-fuchsia-400/10",
+  war:      "text-red-500 bg-red-500/10",
+};
 
 const MAIN_TABS = ["Global", "Sector", "Friends"] as const;
 type MainTab = (typeof MAIN_TABS)[number];
@@ -106,7 +127,7 @@ const RANK_CFG: Record<number, { border: string; glow: string; pedestal: string;
 };
 
 /* ─── Podium Section ─── */
-function Podium({ entries }: { entries: LBEntry[] }) {
+function Podium({ entries, showSector }: { entries: LBEntry[]; showSector?: boolean }) {
   if (entries.length < 3) return null;
   // Order: #2, #1, #3
   const podium = [entries[1], entries[0], entries[2]];
@@ -134,6 +155,11 @@ function Podium({ entries }: { entries: LBEntry[] }) {
                 <p className={`${isFirst ? "text-sm" : "text-xs"} font-bold text-teal-400 mt-1`}>
                   {xp.toLocaleString()} XP
                 </p>
+                {showSector && entry.fav_sector && (
+                  <span className={`inline-block text-[10px] font-medium mt-1.5 px-1.5 py-0.5 rounded ${SECTOR_COLORS[entry.fav_sector_slug || ""] || "text-teal-400 bg-teal-400/10"}`}>
+                    {entry.fav_sector} {entry.fav_sector_pct != null && `${entry.fav_sector_pct}%`}
+                  </span>
+                )}
               </div>
               <div className={`${cfg.pedestalH} ${cfg.pedestal} rounded-b-lg mx-1`} />
             </div>
@@ -272,7 +298,7 @@ export default function LeaderboardPage() {
       ) : (
         <>
           {/* Podium for top 3 */}
-          {top3.length >= 3 && <Podium entries={top3} />}
+          {top3.length >= 3 && <Podium entries={top3} showSector={mainTab === "Friends"} />}
 
           {/* Rank list (4+ or all if < 3) */}
           {(top3.length < 3 ? entries : rest).length > 0 && (
@@ -297,10 +323,17 @@ export default function LeaderboardPage() {
                           {displayName(entry)[0].toUpperCase()}
                         </div>
                       )}
-                      <span className="flex-1 text-sm text-white font-medium truncate">
-                        {displayName(entry)}
-                      </span>
-                      <span className="text-sm text-teal-400 font-bold">
+                      <div className="flex-1 min-w-0">
+                        <span className="text-sm text-white font-medium truncate block">
+                          {displayName(entry)}
+                        </span>
+                        {mainTab === "Friends" && entry.fav_sector && (
+                          <span className={`inline-flex items-center gap-1 text-[10px] font-medium mt-0.5 px-1.5 py-0.5 rounded ${SECTOR_COLORS[entry.fav_sector_slug || ""] || "text-teal-400 bg-teal-400/10"}`}>
+                            {entry.fav_sector} {entry.fav_sector_pct != null && `${entry.fav_sector_pct}%`}
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-sm text-teal-400 font-bold whitespace-nowrap">
                         {xp.toLocaleString()} XP
                       </span>
                     </div>

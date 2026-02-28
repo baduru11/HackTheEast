@@ -239,6 +239,10 @@ async def delete_all_notifications(user_id: str):
     supabase.table("notifications").delete().eq("user_id", user_id).execute()
 
 
+async def delete_notification(notification_id: int, user_id: str):
+    supabase.table("notifications").delete().eq("id", notification_id).eq("user_id", user_id).execute()
+
+
 # --- Leaderboard ---
 
 async def get_global_leaderboard(period: str = "all_time") -> list[dict]:
@@ -261,6 +265,82 @@ async def get_user_rank(user_id: str):
     return result.data[0] if result.data else None
 
 
+async def get_users_fav_sectors(user_ids: list[str]) -> dict[str, dict]:
+    """Return each user's top sector by XP and what % of their quiz XP it represents."""
+    if not user_ids:
+        return {}
+    # Query sector breakdown from materialized view
+    result = (
+        supabase.table("leaderboard_sector")
+        .select("user_id, sector_id, sector_xp")
+        .in_("user_id", user_ids)
+        .execute()
+    )
+    if not result.data:
+        return {}
+
+    # Build sector name map
+    sectors_result = supabase.table("sectors").select("id, name, slug").execute()
+    sector_map = {s["id"]: s for s in (sectors_result.data or [])}
+
+    # Group by user, find top sector and compute %
+    from collections import defaultdict
+    user_sectors: dict[str, list[dict]] = defaultdict(list)
+    for row in result.data:
+        user_sectors[row["user_id"]].append(row)
+
+    out: dict[str, dict] = {}
+    for uid, rows in user_sectors.items():
+        total_xp = sum(r["sector_xp"] for r in rows)
+        top = max(rows, key=lambda r: r["sector_xp"])
+        sector_info = sector_map.get(top["sector_id"], {})
+        pct = round(top["sector_xp"] * 100 / total_xp) if total_xp > 0 else 0
+        out[uid] = {
+            "fav_sector": sector_info.get("name"),
+            "fav_sector_slug": sector_info.get("slug"),
+            "fav_sector_pct": pct,
+        }
+    return out
+
+
+async def get_users_sector_breakdown(user_ids: list[str]) -> dict[str, list[dict]]:
+    """Return top 3 sectors per user, with fill % relative to that user's max sector XP."""
+    if not user_ids:
+        return {}
+    result = (
+        supabase.table("leaderboard_sector")
+        .select("user_id, sector_id, sector_xp")
+        .in_("user_id", user_ids)
+        .execute()
+    )
+    if not result.data:
+        return {}
+
+    sectors_result = supabase.table("sectors").select("id, name, slug").execute()
+    sector_map = {s["id"]: s for s in (sectors_result.data or [])}
+
+    from collections import defaultdict
+    user_sectors: dict[str, list[dict]] = defaultdict(list)
+    for row in result.data:
+        user_sectors[row["user_id"]].append(row)
+
+    out: dict[str, list[dict]] = {}
+    for uid, rows in user_sectors.items():
+        sorted_rows = sorted(rows, key=lambda r: r["sector_xp"], reverse=True)
+        max_xp = sorted_rows[0]["sector_xp"] if sorted_rows else 1
+        out[uid] = [
+            {
+                "name": sector_map.get(r["sector_id"], {}).get("name"),
+                "slug": sector_map.get(r["sector_id"], {}).get("slug"),
+                "xp": r["sector_xp"],
+                "fill": round(r["sector_xp"] * 100 / max_xp),
+            }
+            for r in sorted_rows[:3]
+            if sector_map.get(r["sector_id"])
+        ]
+    return out
+
+
 async def get_friends_leaderboard(user_id: str, friend_ids: list[str], period: str = "all_time") -> list[dict]:
     """Get leaderboard for user + their friends."""
     all_ids = [user_id] + friend_ids
@@ -274,6 +354,15 @@ async def get_friends_leaderboard(user_id: str, friend_ids: list[str], period: s
     entries = sorted(result.data, key=lambda x: x.get("xp", x.get("total_xp", 0)), reverse=True)
     for i, entry in enumerate(entries):
         entry["rank"] = i + 1
+
+    # Attach favourite sector info
+    fav_sectors = await get_users_fav_sectors(all_ids)
+    for entry in entries:
+        info = fav_sectors.get(entry["user_id"], {})
+        entry["fav_sector"] = info.get("fav_sector")
+        entry["fav_sector_slug"] = info.get("fav_sector_slug")
+        entry["fav_sector_pct"] = info.get("fav_sector_pct")
+
     return entries
 
 

@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { apiFetch } from "@/lib/api";
-import { ActivityFeedItem, FriendProfile, FriendRequest } from "@/types";
+import { ActivityFeedItem, FriendProfile, FriendRequest, FriendSector } from "@/types";
 import { StaggerList, StaggerItem } from "@/components/shared/MotionWrappers";
 import Link from "next/link";
 
@@ -39,7 +39,27 @@ const FALLBACK_STYLE = {
   text: "text-gray-400", badge: "bg-gray-700/15 text-gray-400 border-gray-600/25",
 };
 
+const SECTOR_BAR: Record<string, string> = {
+  crypto: "bg-orange-400", stocks: "bg-blue-400", options: "bg-violet-400",
+  bonds: "bg-slate-400", currency: "bg-green-400", etfs: "bg-cyan-400",
+  indices: "bg-indigo-400", sector: "bg-pink-400", asia: "bg-rose-400",
+  americas: "bg-sky-400", europe: "bg-blue-300", india: "bg-amber-400",
+  china: "bg-red-400", japan: "bg-fuchsia-400", war: "bg-red-500",
+};
+
+const SECTOR_TEXT: Record<string, string> = {
+  crypto: "text-orange-400", stocks: "text-blue-400", options: "text-violet-400",
+  bonds: "text-slate-400", currency: "text-green-400", etfs: "text-cyan-400",
+  indices: "text-indigo-400", sector: "text-pink-400", asia: "text-rose-400",
+  americas: "text-sky-400", europe: "text-blue-300", india: "text-amber-400",
+  china: "text-red-400", japan: "text-fuchsia-400", war: "text-red-500",
+};
+
 /* ─── Helpers ─── */
+function userName(u: { username?: string | null; display_name?: string | null }): string {
+  return u.display_name || u.username || "Anonymous";
+}
+
 function formatActivity(item: ActivityFeedItem): string {
   const m = item.metadata as Record<string, unknown>;
   switch (item.activity_type) {
@@ -96,9 +116,9 @@ function TypeIcon({ type, className }: { type: string; className?: string }) {
 
 function Avatar({ url, name, size = "md" }: { url: string | null; name: string | null; size?: "sm" | "md" }) {
   const s = size === "sm" ? "w-7 h-7 text-[10px]" : "w-10 h-10 text-sm";
-  if (url) return <img src={url} alt="" className={`${s} rounded-full object-cover`} />;
+  if (url) return <img src={url} alt="" className={`${s} rounded-full object-cover flex-shrink-0`} />;
   return (
-    <div className={`${s} rounded-full bg-gray-800 flex items-center justify-center font-bold text-gray-500`}>
+    <div className={`${s} rounded-full bg-gray-800 flex items-center justify-center font-bold text-gray-500 flex-shrink-0`}>
       {(name || "?")[0].toUpperCase()}
     </div>
   );
@@ -108,8 +128,6 @@ function Avatar({ url, name, size = "md" }: { url: string | null; name: string |
 export default function SocialPage() {
   const { user, session } = useAuth();
   const token = session?.access_token;
-
-  const [tab, setTab] = useState<"feed" | "friends">("feed");
 
   // Feed state
   const [items, setItems] = useState<ActivityFeedItem[]>([]);
@@ -124,6 +142,7 @@ export default function SocialPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<FriendProfile[]>([]);
   const [searching, setSearching] = useState(false);
+  const [friendsExpanded, setFriendsExpanded] = useState(false);
 
   /* ─── Data fetching ─── */
   const fetchFeed = useCallback(async (cursor?: string) => {
@@ -231,260 +250,241 @@ export default function SocialPage() {
     );
   }
 
+  const visibleFriends = friendsExpanded ? friends : friends.slice(0, 4);
+
   return (
     <div className="max-w-3xl mx-auto px-4 py-8">
-      {/* Header */}
       <h1 className="text-2xl font-bold text-white mb-1">Social</h1>
       <p className="text-sm text-gray-500 mb-6">See what your friends are up to</p>
 
-      {/* Tabs */}
-      <div className="flex gap-2 mb-6">
-        <button
-          onClick={() => setTab("feed")}
-          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all ${
-            tab === "feed"
-              ? "bg-teal-400/10 text-teal-400 border border-teal-400/30 shadow-[0_0_12px_rgba(45,212,191,0.08)]"
-              : "text-gray-500 hover:text-gray-300 border border-transparent"
-          }`}
-        >
-          <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" />
-          </svg>
-          Activity
-        </button>
-        <button
-          onClick={() => setTab("friends")}
-          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all ${
-            tab === "friends"
-              ? "bg-teal-400/10 text-teal-400 border border-teal-400/30 shadow-[0_0_12px_rgba(45,212,191,0.08)]"
-              : "text-gray-500 hover:text-gray-300 border border-transparent"
-          }`}
-        >
-          <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" />
-          </svg>
-          Friends
-          {requests.length > 0 && (
-            <span className="w-5 h-5 rounded-full bg-amber-500 text-[10px] font-bold text-black flex items-center justify-center">
-              {requests.length}
-            </span>
-          )}
-        </button>
+      {/* ══════ FRIENDS SECTION ══════ */}
+      <div className="mb-8">
+        {/* Search bar */}
+        <div className="flex gap-2 mb-4">
+          <div className="flex-1 relative">
+            <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+            </svg>
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && handleSearch()}
+              placeholder="Add friends by username..."
+              className="w-full bg-gray-900/80 border border-gray-800 rounded-xl pl-10 pr-4 py-2.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-teal-400/50 transition-colors"
+            />
+          </div>
+          <button
+            onClick={handleSearch}
+            disabled={searching || searchQuery.length < 1}
+            className="bg-teal-500 hover:bg-teal-400 disabled:opacity-50 text-white text-sm font-medium px-4 py-2.5 rounded-xl transition-colors"
+          >
+            Search
+          </button>
+        </div>
+
+        {/* Search Results */}
+        {searchResults.length > 0 && (
+          <div className="mb-4 space-y-1.5">
+            <p className="text-[11px] text-gray-500 uppercase tracking-widest font-medium mb-2">Results</p>
+            {searchResults.map(u => (
+              <div key={u.id} className="flex items-center gap-3 px-4 py-3 rounded-xl bg-gray-900/60 border border-gray-800/60">
+                <Avatar url={u.avatar_url} name={userName(u)} />
+                <span className="flex-1 text-sm text-white font-medium truncate">{userName(u)}</span>
+                <span className="text-xs text-teal-400/70 font-medium">{u.total_xp.toLocaleString()} XP</span>
+                <button
+                  onClick={() => sendRequest(u.id)}
+                  className="text-xs font-medium bg-teal-500/10 text-teal-400 border border-teal-400/30 px-3 py-1.5 rounded-lg hover:bg-teal-500/20 transition-colors"
+                >
+                  Add
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Pending Requests */}
+        {requests.length > 0 && (
+          <div className="mb-4">
+            <p className="text-[11px] text-gray-500 uppercase tracking-widest font-medium mb-2">
+              Pending Requests
+              <span className="ml-2 inline-flex w-5 h-5 rounded-full bg-amber-500/20 text-amber-400 text-[10px] font-bold items-center justify-center align-middle">
+                {requests.length}
+              </span>
+            </p>
+            <div className="space-y-1.5">
+              {requests.map(r => (
+                <div key={r.friendship_id} className="flex items-center gap-3 px-4 py-3 rounded-xl bg-amber-500/[0.03] border border-amber-500/15">
+                  <Avatar url={r.user.avatar_url} name={userName(r.user)} />
+                  <span className="flex-1 text-sm text-white font-medium truncate">{userName(r.user)}</span>
+                  <button
+                    onClick={() => acceptRequest(r.friendship_id)}
+                    className="text-xs font-medium bg-teal-500 text-white px-3 py-1.5 rounded-lg hover:bg-teal-400 transition-colors"
+                  >
+                    Accept
+                  </button>
+                  <button
+                    onClick={() => rejectRequest(r.friendship_id)}
+                    className="text-xs text-gray-500 hover:text-gray-300 px-2 py-1.5 transition-colors"
+                  >
+                    Reject
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Friends List */}
+        {friendsLoading ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {[...Array(2)].map((_, i) => <div key={i} className="h-32 skeleton-shimmer rounded-xl" />)}
+          </div>
+        ) : friends.length === 0 ? (
+          <p className="text-sm text-gray-600">No friends yet — search above to add some</p>
+        ) : (
+          <>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {visibleFriends.map(f => (
+                <div key={f.friendship_id} className="group rounded-xl bg-gray-900/70 border border-gray-800/60 hover:border-gray-700/60 transition-all p-4">
+                  {/* Header: avatar + name + XP + remove */}
+                  <div className="flex items-center gap-3 mb-3">
+                    <Avatar url={f.avatar_url} name={userName(f)} />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-white truncate">{userName(f)}</p>
+                      <p className="text-xs text-teal-400/70">{f.total_xp.toLocaleString()} XP</p>
+                    </div>
+                    <button
+                      onClick={() => unfriend(f.friendship_id)}
+                      className="text-[10px] text-gray-700 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all px-1"
+                    >
+                      Remove
+                    </button>
+                  </div>
+
+                  {/* Sector gauges */}
+                  {(f.sectors ?? []).length > 0 ? (
+                    <div className="space-y-1.5">
+                      {(f.sectors ?? []).map((s: FriendSector) => (
+                        <div key={s.slug}>
+                          <div className="flex justify-between items-center mb-0.5">
+                            <span className={`text-[10px] font-medium ${SECTOR_TEXT[s.slug] || "text-gray-400"}`}>{s.name}</span>
+                            <span className="text-[10px] text-gray-600">{s.xp} XP</span>
+                          </div>
+                          <div className="h-1.5 bg-gray-800 rounded-full overflow-hidden">
+                            <div
+                              className={`h-full rounded-full transition-all ${SECTOR_BAR[s.slug] || "bg-teal-400"}`}
+                              style={{ width: `${s.fill}%` }}
+                            />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-[11px] text-gray-600">No sector activity yet</p>
+                  )}
+                </div>
+              ))}
+            </div>
+            {friends.length > 4 && (
+              <button
+                onClick={() => setFriendsExpanded(e => !e)}
+                className="mt-2 text-xs text-gray-500 hover:text-teal-400 transition-colors"
+              >
+                {friendsExpanded ? "Show less" : `+${friends.length - 4} more`}
+              </button>
+            )}
+          </>
+        )}
       </div>
 
-      {/* ═══ FEED TAB ═══ */}
-      {tab === "feed" && (
-        <>
-          {feedLoading ? (
-            <div className="space-y-3">
-              {[...Array(6)].map((_, i) => <div key={i} className="h-28 skeleton-shimmer rounded-xl" />)}
-            </div>
-          ) : items.length === 0 ? (
-            <div className="text-center py-16">
-              <div className="w-16 h-16 rounded-2xl bg-gray-800 border border-gray-700 flex items-center justify-center mx-auto mb-4">
-                <svg className="w-8 h-8 text-gray-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" />
-                </svg>
-              </div>
-              <p className="text-gray-500 mb-1">No activity yet</p>
-              <p className="text-gray-600 text-sm">
-                <button onClick={() => setTab("friends")} className="text-teal-400 hover:text-teal-300">Add friends</button>{" "}
-                to see their achievements
-              </p>
-            </div>
-          ) : (
-            <StaggerList className="space-y-3">
-              {items.map(item => {
-                const style = TYPE_STYLES[item.activity_type] || FALLBACK_STYLE;
-                const badge = getBadgeText(item);
-                return (
-                  <StaggerItem key={item.id}>
-                    <div className={`rounded-xl bg-gray-900/80 border border-gray-800/60 border-l-4 ${style.border} hover:border-gray-700/60 transition-all duration-200`}>
-                      <div className="px-4 py-4">
-                        <div className="flex items-start gap-3">
-                          {/* Type icon */}
-                          <div className={`w-9 h-9 rounded-lg ${style.bg} flex items-center justify-center shrink-0 mt-0.5`}>
-                            <TypeIcon type={item.activity_type} className={`w-5 h-5 ${style.text}`} />
-                          </div>
-                          {/* Content */}
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 mb-0.5">
-                              <Avatar url={item.avatar_url} name={item.username} size="sm" />
-                              <span className="font-semibold text-sm text-white truncate">{item.username || "Anonymous"}</span>
-                              <span className="text-[11px] text-gray-600 shrink-0">{timeAgo(item.created_at)}</span>
-                            </div>
-                            <p className="text-sm text-gray-400 leading-relaxed">{formatActivity(item)}</p>
-                          </div>
-                          {/* Score badge */}
-                          {badge && (
-                            <span className={`text-xs font-bold px-2.5 py-1 rounded-lg border shrink-0 ${style.badge}`}>
-                              {badge}
-                            </span>
-                          )}
-                        </div>
+      {/* ══════ ACTIVITY FEED ══════ */}
+      <div>
+        <p className="text-[11px] text-gray-500 uppercase tracking-widest font-medium mb-3">Activity</p>
 
-                        {/* Reactions */}
-                        <div className="flex items-center gap-1.5 mt-3 pl-12">
-                          {EMOJI_KEYS.map(key => {
-                            const count = item.reactions.find(r => r.emoji === key)?.count || 0;
-                            const active = item.my_reaction === key;
-                            return (
-                              <button
-                                key={key}
-                                onClick={() => handleReact(item.id, key)}
-                                className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs transition-all active:scale-95 ${
-                                  active
-                                    ? "bg-teal-400/10 border border-teal-400/30 shadow-[0_0_8px_rgba(45,212,191,0.1)]"
-                                    : count > 0
-                                      ? "bg-gray-800/80 border border-gray-700/50"
-                                      : "bg-gray-800/30 border border-transparent hover:border-gray-700/50 hover:bg-gray-800/60"
-                                }`}
-                              >
-                                <span className="text-sm">{EMOJI_MAP[key]}</span>
-                                {count > 0 && <span className={`font-medium ${active ? "text-teal-400" : "text-gray-400"}`}>{count}</span>}
-                              </button>
-                            );
-                          })}
+        {feedLoading ? (
+          <div className="space-y-3">
+            {[...Array(6)].map((_, i) => <div key={i} className="h-28 skeleton-shimmer rounded-xl" />)}
+          </div>
+        ) : items.length === 0 ? (
+          <div className="text-center py-12">
+            <div className="w-14 h-14 rounded-2xl bg-gray-800 border border-gray-700 flex items-center justify-center mx-auto mb-3">
+              <svg className="w-7 h-7 text-gray-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" />
+              </svg>
+            </div>
+            <p className="text-gray-500 text-sm">No activity yet — add friends to see their achievements</p>
+          </div>
+        ) : (
+          <StaggerList className="space-y-3">
+            {items.map(item => {
+              const style = TYPE_STYLES[item.activity_type] || FALLBACK_STYLE;
+              const badge = getBadgeText(item);
+              return (
+                <StaggerItem key={item.id}>
+                  <div className={`rounded-xl bg-gray-900/80 border border-gray-800/60 border-l-4 ${style.border} hover:border-gray-700/60 transition-all duration-200`}>
+                    <div className="px-4 py-4">
+                      <div className="flex items-start gap-3">
+                        <div className={`w-9 h-9 rounded-lg ${style.bg} flex items-center justify-center shrink-0 mt-0.5`}>
+                          <TypeIcon type={item.activity_type} className={`w-5 h-5 ${style.text}`} />
                         </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-0.5">
+                            <Avatar url={item.avatar_url} name={userName(item)} size="sm" />
+                            <span className="font-semibold text-sm text-white truncate">{userName(item)}</span>
+                            <span className="text-[11px] text-gray-600 shrink-0">{timeAgo(item.created_at)}</span>
+                          </div>
+                          <p className="text-sm text-gray-400 leading-relaxed">{formatActivity(item)}</p>
+                        </div>
+                        {badge && (
+                          <span className={`text-xs font-bold px-2.5 py-1 rounded-lg border shrink-0 ${style.badge}`}>
+                            {badge}
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-1.5 mt-3 pl-12">
+                        {EMOJI_KEYS.map(key => {
+                          const count = item.reactions.find(r => r.emoji === key)?.count || 0;
+                          const active = item.my_reaction === key;
+                          return (
+                            <button
+                              key={key}
+                              onClick={() => handleReact(item.id, key)}
+                              className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs transition-all active:scale-95 ${
+                                active
+                                  ? "bg-teal-400/10 border border-teal-400/30 shadow-[0_0_8px_rgba(45,212,191,0.1)]"
+                                  : count > 0
+                                    ? "bg-gray-800/80 border border-gray-700/50"
+                                    : "bg-gray-800/30 border border-transparent hover:border-gray-700/50 hover:bg-gray-800/60"
+                              }`}
+                            >
+                              <span className="text-sm">{EMOJI_MAP[key]}</span>
+                              {count > 0 && <span className={`font-medium ${active ? "text-teal-400" : "text-gray-400"}`}>{count}</span>}
+                            </button>
+                          );
+                        })}
                       </div>
                     </div>
-                  </StaggerItem>
-                );
-              })}
-            </StaggerList>
-          )}
+                  </div>
+                </StaggerItem>
+              );
+            })}
+          </StaggerList>
+        )}
 
-          {nextCursor && !feedLoading && (
-            <div className="text-center mt-6">
-              <button
-                onClick={() => fetchFeed(nextCursor)}
-                disabled={loadingMore}
-                className="text-sm text-teal-400 hover:text-teal-300 disabled:opacity-50 px-4 py-2 rounded-lg hover:bg-teal-400/5 transition-colors"
-              >
-                {loadingMore ? "Loading..." : "Load more"}
-              </button>
-            </div>
-          )}
-        </>
-      )}
-
-      {/* ═══ FRIENDS TAB ═══ */}
-      {tab === "friends" && (
-        <>
-          {/* Search + Invite */}
-          <div className="flex gap-2 mb-5">
-            <div className="flex-1 relative">
-              <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
-              </svg>
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
-                onKeyDown={e => e.key === "Enter" && handleSearch()}
-                placeholder="Search by username..."
-                className="w-full bg-gray-900/80 border border-gray-800 rounded-xl pl-10 pr-4 py-2.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-teal-400/50 transition-colors"
-              />
-            </div>
+        {nextCursor && !feedLoading && (
+          <div className="text-center mt-6">
             <button
-              onClick={handleSearch}
-              disabled={searching || searchQuery.length < 1}
-              className="bg-teal-500 hover:bg-teal-400 disabled:opacity-50 text-white text-sm font-medium px-4 py-2.5 rounded-xl transition-colors"
+              onClick={() => fetchFeed(nextCursor)}
+              disabled={loadingMore}
+              className="text-sm text-teal-400 hover:text-teal-300 disabled:opacity-50 px-4 py-2 rounded-lg hover:bg-teal-400/5 transition-colors"
             >
-              Search
+              {loadingMore ? "Loading..." : "Load more"}
             </button>
           </div>
-
-          {/* Search Results */}
-          {searchResults.length > 0 && (
-            <div className="mb-5">
-              <p className="text-[11px] text-gray-500 uppercase tracking-widest font-medium mb-2">Search Results</p>
-              <div className="space-y-1.5">
-                {searchResults.map(u => (
-                  <div key={u.id} className="flex items-center gap-3 px-4 py-3 rounded-xl bg-gray-900/60 border border-gray-800/60">
-                    <Avatar url={u.avatar_url} name={u.username} />
-                    <span className="flex-1 text-sm text-white font-medium truncate">{u.username || "Anonymous"}</span>
-                    <span className="text-xs text-teal-400/70 font-medium">{u.total_xp.toLocaleString()} XP</span>
-                    <button
-                      onClick={() => sendRequest(u.id)}
-                      className="text-xs font-medium bg-teal-500/10 text-teal-400 border border-teal-400/30 px-3 py-1.5 rounded-lg hover:bg-teal-500/20 transition-colors"
-                    >
-                      Add
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Pending Requests */}
-          {requests.length > 0 && (
-            <div className="mb-5">
-              <p className="text-[11px] text-gray-500 uppercase tracking-widest font-medium mb-2">
-                Pending Requests
-                <span className="ml-2 inline-flex w-5 h-5 rounded-full bg-amber-500/20 text-amber-400 text-[10px] font-bold items-center justify-center align-middle">
-                  {requests.length}
-                </span>
-              </p>
-              <div className="space-y-1.5">
-                {requests.map(r => (
-                  <div key={r.friendship_id} className="flex items-center gap-3 px-4 py-3 rounded-xl bg-amber-500/[0.03] border border-amber-500/15">
-                    <Avatar url={r.user.avatar_url} name={r.user.username} />
-                    <span className="flex-1 text-sm text-white font-medium truncate">{r.user.username || "Anonymous"}</span>
-                    <button
-                      onClick={() => acceptRequest(r.friendship_id)}
-                      className="text-xs font-medium bg-teal-500 text-white px-3 py-1.5 rounded-lg hover:bg-teal-400 transition-colors"
-                    >
-                      Accept
-                    </button>
-                    <button
-                      onClick={() => rejectRequest(r.friendship_id)}
-                      className="text-xs text-gray-500 hover:text-gray-300 px-2 py-1.5 transition-colors"
-                    >
-                      Reject
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Friends List */}
-          <div>
-            <p className="text-[11px] text-gray-500 uppercase tracking-widest font-medium mb-2">
-              Friends {!friendsLoading && `(${friends.length})`}
-            </p>
-            {friendsLoading ? (
-              <div className="space-y-2">
-                {[...Array(5)].map((_, i) => <div key={i} className="h-14 skeleton-shimmer rounded-xl" />)}
-              </div>
-            ) : friends.length === 0 ? (
-              <div className="text-center py-12">
-                <p className="text-gray-500 mb-1">No friends yet</p>
-                <p className="text-gray-600 text-sm">Search for users to add friends</p>
-              </div>
-            ) : (
-              <StaggerList className="space-y-1.5">
-                {friends.map(f => (
-                  <StaggerItem key={f.friendship_id}>
-                    <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-gray-900/60 border border-gray-800/60 group hover:border-gray-700/60 transition-all">
-                      <Avatar url={f.avatar_url} name={f.username} />
-                      <span className="flex-1 text-sm text-white font-medium truncate">{f.username || "Anonymous"}</span>
-                      <span className="text-xs text-teal-400/70 font-medium">{f.total_xp.toLocaleString()} XP</span>
-                      <button
-                        onClick={() => unfriend(f.friendship_id)}
-                        className="text-xs text-gray-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all px-2 py-1"
-                      >
-                        Unfriend
-                      </button>
-                    </div>
-                  </StaggerItem>
-                ))}
-              </StaggerList>
-            )}
-          </div>
-        </>
-      )}
+        )}
+      </div>
     </div>
   );
 }

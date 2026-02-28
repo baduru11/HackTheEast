@@ -94,6 +94,16 @@ body {
   box-shadow: 0 0 16px rgba(217, 119, 6, 0.2), 0 0 32px rgba(217, 119, 6, 0.06);
 }
 
+/* Gauge fluid wave */
+@keyframes gauge-wave {
+  0%, 100% { transform: translateX(0); }
+  50% { transform: translateX(-9px); }
+}
+
+.animate-gauge-wave {
+  animation: gauge-wave 3s ease-in-out infinite;
+}
+
 /* Interactive cursor */
 button, a, [role="button"] {
   cursor: pointer;

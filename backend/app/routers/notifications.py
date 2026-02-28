@@ -39,3 +39,12 @@ async def mark_all_read(user_id: str = Depends(get_current_user)):
 async def delete_all(user_id: str = Depends(get_current_user)):
     await db.delete_all_notifications(user_id)
     return {"success": True}
+
+
+@router.delete("/{notification_id}")
+async def delete_one(
+    notification_id: int,
+    user_id: str = Depends(get_current_user),
+):
+    await db.delete_notification(notification_id, user_id)
+    return {"success": True}

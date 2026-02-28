@@ -181,6 +181,13 @@ export interface Notification {
 
 // --- Social Types ---
 
+export interface FriendSector {
+  name: string;
+  slug: string;
+  xp: number;
+  fill: number; // 0-100, relative to user's own top sector
+}
+
 export interface FriendProfile {
   id: string;
   friendship_id: string;
@@ -188,6 +195,7 @@ export interface FriendProfile {
   display_name: string | null;
   avatar_url: string | null;
   total_xp: number;
+  sectors?: FriendSector[];
 }
 
 export interface FriendRequest {
@@ -211,6 +219,7 @@ export interface ActivityFeedItem {
   id: string;
   user_id: string;
   username: string | null;
+  display_name: string | null;
   avatar_url: string | null;
   activity_type: "quiz_completed" | "gauge_milestone" | "streak_milestone";
   metadata: Record<string, unknown>;

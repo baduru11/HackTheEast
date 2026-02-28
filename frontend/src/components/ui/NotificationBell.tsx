@@ -108,14 +108,14 @@ function parseSectors(title: string): { label: string; sectors: string[] } {
   return { label: title, sectors: [] };
 }
 
-function NotifItem({ n, onClose }: { n: Notification; onClose: () => void }) {
+function NotifItem({ n, onClose, onDismiss }: { n: Notification; onClose: () => void; onDismiss: (id: number) => void }) {
   const { label, sectors } = n.type === "new_article" ? parseSectors(n.title) : { label: n.title, sectors: [] };
   const config = NOTIF_CONFIG[n.type] || DEFAULT_CONFIG;
 
   return (
     <Link
       href={n.link || "#"}
-      onClick={onClose}
+      onClick={() => { onDismiss(n.id); onClose(); }}
       className={`group flex items-start gap-3 px-4 py-3 transition-colors hover:bg-white/[0.04] ${
         !n.read ? "bg-teal-400/[0.04] border-l-2 border-l-teal-400" : "border-l-2 border-l-transparent"
       }`}
@@ -178,6 +178,18 @@ export default function NotificationBell() {
     setNotifications([]);
     setUnreadCount(0);
     fetch(`/api/v1/notifications/all`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${session?.access_token}` },
+    }).catch(() => {});
+  };
+
+  const dismissOne = (id: number) => {
+    setNotifications((prev) => prev.filter((n) => n.id !== id));
+    setUnreadCount((prev) => {
+      const notif = notifications.find((n) => n.id === id);
+      return notif && !notif.read ? Math.max(0, prev - 1) : prev;
+    });
+    fetch(`/api/v1/notifications/${id}`, {
       method: "DELETE",
       headers: { Authorization: `Bearer ${session?.access_token}` },
     }).catch(() => {});
@@ -251,7 +263,7 @@ export default function NotificationBell() {
                 </div>
               ) : (
                 notifications.slice(0, 20).map((n) => (
-                  <NotifItem key={n.id} n={n} onClose={() => setOpen(false)} />
+                  <NotifItem key={n.id} n={n} onClose={() => setOpen(false)} onDismiss={dismissOne} />
                 ))
               )}
             </div>

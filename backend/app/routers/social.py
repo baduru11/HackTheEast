@@ -44,6 +44,7 @@ async def get_friends_feed(
             "id": a["id"],
             "user_id": a["user_id"],
             "username": profile.get("username"),
+            "display_name": profile.get("display_name"),
             "avatar_url": profile.get("avatar_url"),
             "activity_type": a["activity_type"],
             "metadata": a["metadata"],

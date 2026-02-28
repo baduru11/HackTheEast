@@ -42,7 +42,7 @@ export default function StockDetailModal({
     fetch(`/api/v1/predict/stock/${stock.ticker}/candles?range=${range}`)
       .then((r) => r.json())
       .then((res) => {
-        if (res.success && res.data?.t) {
+        if (res.success && res.data?.t && res.data.t.length > 0) {
           const points: ChartDataPoint[] = res.data.t.map(
             (time: number, i: number) => ({
               time:
@@ -60,7 +60,8 @@ export default function StockDetailModal({
           );
           setChartData(points);
         } else {
-          setError("No chart data available");
+          const msg = res.error?.message || "No chart data available";
+          setError(msg);
         }
       })
       .catch(() => {
