@@ -158,13 +158,6 @@ export default function Navbar() {
                 Social
               </Link>
               <Link
-                href="/friends"
-                onClick={() => setMobileOpen(false)}
-                className="block text-sm text-gray-300 hover:text-teal-400 py-1"
-              >
-                Friends
-              </Link>
-              <Link
                 href="/leaderboard"
                 onClick={() => setMobileOpen(false)}
                 className="block text-sm text-gray-300 hover:text-teal-400 py-1"
