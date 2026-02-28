@@ -217,3 +217,52 @@ export interface ActivityFeedItem {
   reactions: ReactionCount[];
   my_reaction: string | null;
 }
+
+// ── Daily Quiz ─────────────────────────────────────────────
+
+export interface DailyQuizQuestion {
+  question_text: string;
+  options: string[];
+}
+
+export interface DailyQuiz {
+  id: number;
+  date: string;
+  questions: DailyQuizQuestion[];
+}
+
+export interface DailyQuizExplanation {
+  question_text: string;
+  your_answer: number;
+  correct_answer: number;
+  is_correct: boolean;
+  explanation: string;
+}
+
+export interface DailyQuizResult {
+  score: number;
+  total_questions: number;
+  xp_earned: number;
+  explanations: DailyQuizExplanation[];
+}
+
+// ── Predict ────────────────────────────────────────────────
+
+export interface PredictStock {
+  ticker: string;
+  name: string;
+  price: number;
+  change_24h: number;
+}
+
+export interface Prediction {
+  id: number;
+  ticker: string;
+  stock_name: string;
+  direction: "up" | "down";
+  price_at_bet: number;
+  price_at_close: number | null;
+  result: "pending" | "win" | "loss";
+  xp_earned: number;
+  created_at: string;
+}
