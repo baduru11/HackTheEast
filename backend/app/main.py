@@ -68,3 +68,11 @@ async def trigger_ingest():
     await ingest_rss()
     await process_pending_articles(batch_size=5)
     return {"status": "ok", "triggered": True}
+
+
+@app.post("/api/v1/health/trigger-weekly-report")
+async def trigger_weekly_report():
+    """Manually trigger weekly report generation — for debugging."""
+    from app.services.weekly_report import generate_all_weekly_reports
+    await generate_all_weekly_reports()
+    return {"status": "ok", "triggered": True}

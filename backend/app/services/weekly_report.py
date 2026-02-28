@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta
 
 from app.db import supabase as db
+from app.services.email import send_weekly_report_email
 from app.services.llm import generate_sector_weekly_summary, generate_revision_questions
 
 
@@ -162,6 +163,21 @@ async def generate_all_weekly_reports():
                     body="Check out your personalized sector summary and revision quiz.",
                     link="/profile#weekly-reports",
                 )
+                # Send email
+                profile = await db.get_profile(user_id)
+                if profile:
+                    from app.dependencies import supabase as sb_client
+                    try:
+                        auth_user = sb_client.auth.admin.get_user_by_id(user_id)
+                        if auth_user and auth_user.user and auth_user.user.email:
+                            await send_weekly_report_email(
+                                to_email=auth_user.user.email,
+                                display_name=profile.get("display_name") or profile.get("username") or "there",
+                                report=report,
+                            )
+                            await db.update_weekly_report(report["id"], {"email_sent": True})
+                    except Exception as email_err:
+                        print(f"[weekly_report] email error for {user_id}: {email_err}")
         except Exception as e:
             print(f"[weekly_report] error for user {user_id}: {e}")
 

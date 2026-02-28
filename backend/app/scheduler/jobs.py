@@ -13,6 +13,7 @@ from app.services.gauge import process_gauge_decay
 from app.services.xp import award_passive_xp
 from app.db.supabase import refresh_leaderboards
 from app.services.predict import resolve_pending_predictions
+from app.services.weekly_report import generate_all_weekly_reports
 
 # Exported so health endpoint can inspect task state
 _tasks: list[asyncio.Task] = []
@@ -94,6 +95,27 @@ async def _cleanup_notifications_daily():
             print(f"[scheduler] 'cleanup_notifications' error: {e}")
 
 
+async def _generate_weekly_reports():
+    """Fire every Monday at 06:00 UTC."""
+    while True:
+        now = datetime.utcnow()
+        # Find next Monday
+        days_until_monday = (7 - now.weekday()) % 7
+        if days_until_monday == 0 and now.hour >= 6:
+            days_until_monday = 7
+        next_monday = (now + timedelta(days=days_until_monday)).replace(
+            hour=6, minute=0, second=0, microsecond=0
+        )
+        await asyncio.sleep((next_monday - now).total_seconds())
+        try:
+            print("[scheduler] running: weekly_reports")
+            await generate_all_weekly_reports()
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:
+            print(f"[scheduler] 'weekly_reports' error: {e}")
+
+
 def setup_scheduler() -> list[asyncio.Task]:
     """
     Create all background asyncio tasks.
@@ -112,9 +134,9 @@ def setup_scheduler() -> list[asyncio.Task]:
             _run_periodically("refresh_lb", refresh_leaderboards, 5 * 60, initial_delay=15),
             name="refresh_lb",
         ),
-        # Gauge decay every 10 min
+        # Gauge decay every 30 min
         asyncio.create_task(
-            _run_periodically("gauge_decay", process_gauge_decay, 10 * 60, initial_delay=20),
+            _run_periodically("gauge_decay", process_gauge_decay, 30 * 60, initial_delay=20),
             name="gauge_decay",
         ),
         # Passive XP every 10 min
@@ -146,6 +168,8 @@ def setup_scheduler() -> list[asyncio.Task]:
         asyncio.create_task(_resolve_predictions_daily(), name="resolve_predictions"),
         # Notification cleanup daily at 3 AM UTC
         asyncio.create_task(_cleanup_notifications_daily(), name="cleanup_notifications"),
+        # Weekly report generation every Monday 6 AM UTC
+        asyncio.create_task(_generate_weekly_reports(), name="weekly_reports"),
     ]
     print(f"[scheduler] started {len(_tasks)} background tasks")
     return _tasks
