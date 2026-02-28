@@ -131,3 +131,31 @@ async def fetch_quotes_for_tickers(tickers: list[str]) -> list[dict]:
         if quote:
             quotes.append(quote)
     return quotes
+
+
+async def get_quote(symbol: str) -> dict:
+    """Fetch real-time quote for a single symbol."""
+    async with httpx.AsyncClient() as client:
+        resp = await client.get(
+            "https://finnhub.io/api/v1/quote",
+            params={"symbol": symbol, "token": settings.finnhub_api_key},
+        )
+        resp.raise_for_status()
+        return resp.json()
+
+
+async def get_candles(symbol: str, resolution: str, from_ts: int, to_ts: int) -> dict:
+    """Fetch candle data for charting."""
+    async with httpx.AsyncClient() as client:
+        resp = await client.get(
+            "https://finnhub.io/api/v1/stock/candle",
+            params={
+                "symbol": symbol,
+                "resolution": resolution,
+                "from": from_ts,
+                "to": to_ts,
+                "token": settings.finnhub_api_key,
+            },
+        )
+        resp.raise_for_status()
+        return resp.json()
