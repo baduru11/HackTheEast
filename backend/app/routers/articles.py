@@ -65,6 +65,26 @@ async def get_headlines():
     }
 
 
+@router.get("/debug/process")
+async def debug_process():
+    """Manually trigger pipeline processing for debugging."""
+    import traceback
+    from app.services.pipeline import process_pending_articles, recover_stuck_articles
+    results = {"recover": None, "process": None, "error": None}
+    try:
+        await recover_stuck_articles()
+        results["recover"] = "ok"
+    except Exception as e:
+        results["recover"] = f"{e}"
+    try:
+        await process_pending_articles(batch_size=2)
+        results["process"] = "ok"
+    except Exception as e:
+        results["process"] = f"{e}"
+        results["error"] = traceback.format_exc()
+    return results
+
+
 @router.get("/{article_id}")
 async def get_article(article_id: int):
     article = await db.get_article_by_id(article_id)
