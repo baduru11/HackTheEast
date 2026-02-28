@@ -1,3 +1,4 @@
+import asyncio
 import finnhub
 import httpx
 from datetime import datetime, timedelta
@@ -38,10 +39,11 @@ def clean_image_url(url: str | None) -> str | None:
 
 async def fetch_general_news() -> list[dict]:
     """Fetch general market news from all categories."""
+    loop = asyncio.get_event_loop()
     articles = []
     for category in NEWS_CATEGORIES:
         try:
-            news = client.general_news(category, min_id=0)
+            news = await loop.run_in_executor(None, lambda c=category: client.general_news(c, min_id=0))
             for item in news:
                 if item.get("source", "") in BLOCKED_SOURCES:
                     continue
@@ -65,10 +67,11 @@ async def fetch_general_news() -> list[dict]:
 
 async def fetch_company_news(ticker: str) -> list[dict]:
     """Fetch news for a specific company ticker."""
+    loop = asyncio.get_event_loop()
     today = datetime.utcnow().date()
     week_ago = today - timedelta(days=7)
     try:
-        news = client.company_news(ticker, _from=str(week_ago), to=str(today))
+        news = await loop.run_in_executor(None, lambda: client.company_news(ticker, _from=str(week_ago), to=str(today)))
         results = []
         for item in news[:10]:
             if item.get("source", "") in BLOCKED_SOURCES:
@@ -96,8 +99,9 @@ async def fetch_company_news(ticker: str) -> list[dict]:
 
 async def fetch_quote(ticker: str) -> dict | None:
     """Fetch current price quote for a ticker."""
+    loop = asyncio.get_event_loop()
     try:
-        quote = client.quote(ticker)
+        quote = await loop.run_in_executor(None, lambda: client.quote(ticker))
         return {
             "ticker": ticker,
             "price": quote.get("c"),  # current price

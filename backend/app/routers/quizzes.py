@@ -87,12 +87,13 @@ async def submit_quiz(
     favorites = await db.get_user_favorites(user_id)
     fav_sector_ids = {f["sector_id"]: f for f in favorites}
 
-    new_gauge = 0
+    gauge_updates = {}
     for sid in sector_ids:
         if sid in fav_sector_ids:
             current = fav_sector_ids[sid]["gauge_score"]
-            new_gauge = min(current + gauge_gain, 100)
-            await db.update_gauge(user_id, sid, new_gauge)
+            new_score = min(current + gauge_gain, 100)
+            await db.update_gauge(user_id, sid, new_score)
+            gauge_updates[sid] = new_score
 
     return {
         "success": True,
@@ -101,7 +102,7 @@ async def submit_quiz(
             "total_questions": total,
             "xp_earned": xp_earned,
             "gauge_change": gauge_gain,
-            "new_gauge_score": new_gauge,
+            "gauge_updates": gauge_updates,
             "explanations": feedback,
         },
     }

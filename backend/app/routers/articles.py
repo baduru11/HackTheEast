@@ -66,8 +66,8 @@ async def get_headlines():
 
 
 @router.get("/debug/process")
-async def debug_process():
-    """Manually trigger pipeline processing for debugging."""
+async def debug_process(user_id: str = Depends(get_current_user)):
+    """Manually trigger pipeline processing (auth required)."""
     import traceback
     from app.services.pipeline import process_pending_articles, recover_stuck_articles
     results = {"recover": None, "process": None, "error": None}
@@ -86,8 +86,8 @@ async def debug_process():
 
 
 @router.get("/debug/bulk")
-async def debug_bulk(background_tasks: BackgroundTasks):
-    """Kick off bulk processing in the background (batch_size=3)."""
+async def debug_bulk(background_tasks: BackgroundTasks, user_id: str = Depends(get_current_user)):
+    """Kick off bulk processing in the background (auth required)."""
     background_tasks.add_task(_bulk_process)
     _, pending_count = await db.get_articles(status="pending", page=1, limit=1)
     return {"status": "started", "pending": pending_count or 0}
@@ -96,8 +96,9 @@ async def debug_bulk(background_tasks: BackgroundTasks):
 async def _bulk_process():
     from app.services.pipeline import process_pending_articles, recover_stuck_articles
     await recover_stuck_articles()
+    max_rounds = 50
     rounds = 0
-    while True:
+    while rounds < max_rounds:
         articles, _ = await db.get_articles(status="pending", page=1, limit=1)
         if not articles:
             break
@@ -107,8 +108,8 @@ async def _bulk_process():
 
 
 @router.get("/debug/fix-sources")
-async def debug_fix_sources(background_tasks: BackgroundTasks):
-    """Resolve redirect URLs and fix source names for existing done articles."""
+async def debug_fix_sources(background_tasks: BackgroundTasks, user_id: str = Depends(get_current_user)):
+    """Resolve redirect URLs and fix source names (auth required)."""
     background_tasks.add_task(_fix_sources)
     return {"status": "started"}
 

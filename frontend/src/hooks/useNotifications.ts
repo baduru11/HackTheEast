@@ -6,17 +6,18 @@ import { useAuth } from "./useAuth";
 import type { Notification } from "@/types";
 
 export function useNotifications() {
-  const { user } = useAuth();
+  const { user, session } = useAuth();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const supabase = createClient();
 
   useEffect(() => {
-    if (!user) return;
+    if (!user || !session?.access_token) return;
 
     // Initial fetch
-    fetch(`/api/v1/notifications`, {
-      headers: { Authorization: `Bearer ${user.id}` },
+    const apiBase = process.env.NEXT_PUBLIC_API_URL || "";
+    fetch(`${apiBase}/api/v1/notifications`, {
+      headers: { Authorization: `Bearer ${session.access_token}` },
     })
       .then((r) => r.json())
       .then((data) => {
@@ -48,7 +49,7 @@ export function useNotifications() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [user]);
+  }, [user, session]);
 
   return { notifications, unreadCount, setNotifications, setUnreadCount };
 }

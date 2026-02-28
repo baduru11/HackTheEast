@@ -1,3 +1,4 @@
+import asyncio
 import re
 from datetime import datetime, timezone
 from html import unescape
@@ -129,10 +130,14 @@ async def fetch_single_feed(source: dict) -> list[dict]:
 
 
 async def fetch_all_rss_feeds() -> list[dict]:
-    """Fetch all RSS feeds and return combined article list."""
+    """Fetch all RSS feeds in parallel and return combined article list."""
+    results = await asyncio.gather(
+        *[fetch_single_feed(source) for source in RSS_SOURCES],
+        return_exceptions=True,
+    )
     all_articles = []
-    for source in RSS_SOURCES:
-        articles = await fetch_single_feed(source)
-        all_articles.extend(articles)
+    for result in results:
+        if isinstance(result, list):
+            all_articles.extend(result)
     print(f"RSS feeds: fetched {len(all_articles)} articles from {len(RSS_SOURCES)} sources")
     return all_articles

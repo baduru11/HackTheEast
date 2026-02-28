@@ -25,7 +25,8 @@ export default function NotificationBell() {
   if (!user) return null;
 
   const markAllRead = async () => {
-    await fetch("/api/v1/notifications/read-all", {
+    const apiBase = process.env.NEXT_PUBLIC_API_URL || "";
+    await fetch(`${apiBase}/api/v1/notifications/read-all`, {
       method: "POST",
       headers: { Authorization: `Bearer ${session?.access_token}` },
     });

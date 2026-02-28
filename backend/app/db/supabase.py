@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from app.dependencies import supabase
 
@@ -114,17 +114,24 @@ async def get_articles_by_sector_ids(
 # --- Quizzes ---
 
 async def insert_quiz(article_id: int, questions: list[dict]) -> int:
+    # Check if quiz already exists (UNIQUE constraint on article_id)
+    existing = supabase.table("quizzes").select("id").eq("article_id", article_id).execute()
+    if existing.data:
+        return existing.data[0]["id"]
     quiz = supabase.table("quizzes").insert({"article_id": article_id}).execute()
     quiz_id = quiz.data[0]["id"]
-    for i, q in enumerate(questions):
-        supabase.table("quiz_questions").insert({
+    rows = [
+        {
             "quiz_id": quiz_id,
             "question_text": q["question"],
             "options": q["options"],
             "correct_index": q["correct_index"],
             "explanation": q["explanation"],
             "order_num": i + 1,
-        }).execute()
+        }
+        for i, q in enumerate(questions)
+    ]
+    supabase.table("quiz_questions").insert(rows).execute()
     return quiz_id
 
 
@@ -162,9 +169,7 @@ async def update_profile(user_id: str, data: dict):
 
 
 async def add_xp(user_id: str, amount: int):
-    profile = await get_profile(user_id)
-    new_xp = profile["total_xp"] + amount
-    supabase.table("profiles").update({"total_xp": new_xp}).eq("id", user_id).execute()
+    supabase.rpc("increment_xp", {"uid": user_id, "amount": amount}).execute()
 
 
 # --- Favorites ---
@@ -281,7 +286,7 @@ async def get_streak_days(user_id: str) -> int:
         return 0
 
     today = datetime.utcnow().date()
-    if dates[0] != today and dates[0] != today - __import__("datetime").timedelta(days=1):
+    if dates[0] != today and dates[0] != today - timedelta(days=1):
         return 0
 
     streak = 1
