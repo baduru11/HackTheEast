@@ -166,8 +166,7 @@ export default function NotificationBell() {
   if (!user) return null;
 
   const markAllRead = async () => {
-    const apiBase = process.env.NEXT_PUBLIC_API_URL || "";
-    await fetch(`${apiBase}/api/v1/notifications/read-all`, {
+    await fetch(`/api/v1/notifications/read-all`, {
       method: "POST",
       headers: { Authorization: `Bearer ${session?.access_token}` },
     });
@@ -178,8 +177,7 @@ export default function NotificationBell() {
   const clearAll = () => {
     setNotifications([]);
     setUnreadCount(0);
-    const apiBase = process.env.NEXT_PUBLIC_API_URL || "";
-    fetch(`${apiBase}/api/v1/notifications/all`, {
+    fetch(`/api/v1/notifications/all`, {
       method: "DELETE",
       headers: { Authorization: `Bearer ${session?.access_token}` },
     }).catch(() => {});

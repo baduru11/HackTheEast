@@ -162,8 +162,7 @@ export default function LeaderboardPage() {
       url = `/api/v1/leaderboard/sector/${sectorSlug}?period=${periodParam}`;
     } else {
       if (token) {
-        const base = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-        url = `${base}/api/v1/leaderboard/friends?period=${periodParam}`;
+        url = `/api/v1/leaderboard/friends?period=${periodParam}`;
         fetchOptions = { headers: { Authorization: `Bearer ${token}` } };
       } else {
         setEntries([]);

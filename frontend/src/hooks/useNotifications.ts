@@ -15,8 +15,7 @@ export function useNotifications() {
     if (!user || !session?.access_token) return;
 
     // Initial fetch
-    const apiBase = process.env.NEXT_PUBLIC_API_URL || "";
-    fetch(`${apiBase}/api/v1/notifications`, {
+    fetch(`/api/v1/notifications`, {
       headers: { Authorization: `Bearer ${session.access_token}` },
     })
       .then((r) => r.json())

@@ -1,6 +1,3 @@
-const API_BASE =
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-
 export async function apiFetch<T>(
   path: string,
   options?: RequestInit & { token?: string }
@@ -12,11 +9,8 @@ export async function apiFetch<T>(
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
   };
 
-  // Authenticated requests go directly to backend (avoids cookie-bloated rewrites).
-  // Public requests use the Next.js rewrite proxy.
-  const url = token
-    ? `${API_BASE}/api/v1${path}`
-    : `/api/v1${path}`;
+  // All requests go through the Next.js rewrite proxy (same-origin, no CORS issues).
+  const url = `/api/v1${path}`;
 
   const res = await fetch(url, {
     ...fetchOptions,
