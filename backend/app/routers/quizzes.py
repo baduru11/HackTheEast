@@ -5,6 +5,7 @@ from app.dependencies import get_current_user
 from app.models.quiz import QuizSubmit
 from app.services.gauge import calculate_gauge_gain
 from app.services.xp import calculate_quiz_xp
+from app.services.activity import record_quiz_completed, record_gauge_milestone, record_streak_milestone
 
 router = APIRouter(prefix="/api/v1/articles", tags=["quizzes"])
 
@@ -83,6 +84,11 @@ async def submit_quiz(
 
     # Update gauge for relevant sectors
     article = await db.get_article_by_id(article_id)
+
+    # Record social activity - quiz completed
+    headline = (article or {}).get("headline", "an article")
+    await record_quiz_completed(user_id, article_id, headline, score, total)
+
     sector_ids = [s["sector_id"] for s in article.get("article_sectors", [])]
     favorites = await db.get_user_favorites(user_id)
     fav_sector_ids = {f["sector_id"]: f for f in favorites}
@@ -94,6 +100,23 @@ async def submit_quiz(
             new_score = min(current + gauge_gain, 100)
             await db.update_gauge(user_id, sid, new_score)
             gauge_updates[sid] = new_score
+
+    # Check for gauge milestones
+    for sid, new_gauge in gauge_updates.items():
+        if new_gauge >= 80:
+            sector_info = next((f for f in favorites if f["sector_id"] == sid), None)
+            sector_name = sector_info.get("sectors", {}).get("name", "Unknown") if sector_info else "Unknown"
+            if new_gauge >= 100:
+                await record_gauge_milestone(user_id, sector_name, new_gauge, 100)
+            elif new_gauge >= 90:
+                await record_gauge_milestone(user_id, sector_name, new_gauge, 90)
+            else:
+                await record_gauge_milestone(user_id, sector_name, new_gauge, 80)
+
+    # Check for streak milestones
+    streak = await db.get_streak_days(user_id)
+    if streak in (7, 14, 30):
+        await record_streak_milestone(user_id, streak)
 
     return {
         "success": True,
