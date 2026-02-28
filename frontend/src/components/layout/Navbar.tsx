@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { useAuth } from "@/hooks/useAuth";
 import NavDropdown from "./NavDropdown";
@@ -36,8 +37,9 @@ export default function Navbar() {
     <nav className="sticky top-0 z-50 glass-strong">
       <div className="max-w-7xl mx-auto px-4 h-14 flex items-center justify-between">
         <div className="flex items-center gap-8">
-          <Link href="/" className="text-xl font-bold text-white tracking-tight">
-            Fina<span className="text-teal-400" style={{ textShadow: "0 0 12px rgba(45, 212, 191, 0.4)" }}>Meter</span>
+          <Link href="/" className="flex items-center gap-2 text-xl font-bold text-white tracking-tight">
+            <Image src="/img/fina.png" alt="FinaMeter" width={32} height={32} className="rounded-md" />
+            <span>Fina<span className="text-teal-400" style={{ textShadow: "0 0 12px rgba(45, 212, 191, 0.4)" }}>Meter</span></span>
           </Link>
 
           <div className="hidden md:flex items-center gap-6">
@@ -60,6 +62,18 @@ export default function Navbar() {
               className="text-gray-300 hover:text-teal-400 transition-colors text-sm font-medium"
             >
               Leaderboard
+            </Link>
+            <Link
+              href="/daily-quiz"
+              className="text-gray-300 hover:text-teal-400 transition-colors text-sm font-medium"
+            >
+              Daily Quiz
+            </Link>
+            <Link
+              href="/predict"
+              className="text-gray-300 hover:text-teal-400 transition-colors text-sm font-medium"
+            >
+              Predict
             </Link>
           </div>
         </div>
@@ -163,6 +177,20 @@ export default function Navbar() {
                 className="block text-sm text-gray-300 hover:text-teal-400 py-1"
               >
                 Leaderboard
+              </Link>
+              <Link
+                href="/daily-quiz"
+                onClick={() => setMobileOpen(false)}
+                className="block text-sm text-gray-300 hover:text-teal-400 py-1"
+              >
+                Daily Quiz
+              </Link>
+              <Link
+                href="/predict"
+                onClick={() => setMobileOpen(false)}
+                className="block text-sm text-gray-300 hover:text-teal-400 py-1"
+              >
+                Predict
               </Link>
               {user ? (
                 <>
