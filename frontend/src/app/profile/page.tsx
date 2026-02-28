@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/hooks/useAuth";
+import { apiFetch } from "@/lib/api";
 import GaugeMeter from "@/components/profile/GaugeMeter";
 
 interface DashboardData {
@@ -29,13 +30,13 @@ export default function ProfilePage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!session) return;
-    fetch("/api/v1/profile", {
-      headers: { Authorization: `Bearer ${session.access_token}` },
-    })
-      .then((r) => r.json())
+    if (!session) {
+      setLoading(false);
+      return;
+    }
+    apiFetch<DashboardData>("/profile", { token: session.access_token })
       .then((res) => {
-        if (res.success) setData(res.data);
+        if (res.success && res.data) setData(res.data);
       })
       .catch(console.error)
       .finally(() => setLoading(false));
@@ -70,7 +71,19 @@ export default function ProfilePage() {
     );
   }
 
-  if (!data) return null;
+  if (!data) {
+    return (
+      <div className="max-w-4xl mx-auto px-4 py-24 text-center">
+        <p className="text-gray-400 mb-4">Could not load profile. Check console for details.</p>
+        <Link
+          href="/"
+          className="text-teal-400 hover:text-teal-300 text-sm transition-colors"
+        >
+          Go home
+        </Link>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8">

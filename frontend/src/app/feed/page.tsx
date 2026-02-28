@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/hooks/useAuth";
+import { apiFetch } from "@/lib/api";
 import ArticleCard from "@/components/feed/ArticleCard";
 import type { Article } from "@/types";
 
@@ -15,18 +16,16 @@ export default function FeedPage() {
 
   const fetchFeed = async (p: number) => {
     if (!session) return;
-    const params = new URLSearchParams({ page: String(p), limit: "20" });
-    const res = await fetch(`/api/v1/articles/feed?${params}`, {
-      headers: { Authorization: `Bearer ${session.access_token}` },
+    const res = await apiFetch<Article[]>(`/articles/feed?page=${p}&limit=20`, {
+      token: session.access_token,
     });
-    const data = await res.json();
-    if (data.success) {
+    if (res.success && res.data) {
       if (p === 1) {
-        setArticles(data.data);
+        setArticles(res.data);
       } else {
-        setArticles((prev) => [...prev, ...data.data]);
+        setArticles((prev) => [...prev, ...res.data!]);
       }
-      setTotal(data.meta?.total ?? 0);
+      setTotal((res.meta?.total as number) ?? 0);
     }
     setLoading(false);
   };

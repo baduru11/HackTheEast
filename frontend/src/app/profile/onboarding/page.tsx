@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
+import { apiFetch } from "@/lib/api";
 
 const ALL_SECTORS = [
   { id: 1, name: "Asia", category: "world" },
@@ -44,15 +45,12 @@ export default function OnboardingPage() {
     let failed = 0;
     for (const sectorId of selected) {
       try {
-        const res = await fetch("/api/v1/favorites", {
+        const res = await apiFetch("/favorites", {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${session?.access_token}`,
-          },
+          token: session?.access_token,
           body: JSON.stringify({ sector_id: sectorId }),
         });
-        if (!res.ok) failed++;
+        if (!res.success) failed++;
       } catch {
         failed++;
       }
