@@ -276,3 +276,51 @@ export interface Prediction {
   xp_earned: number;
   created_at: string;
 }
+
+// ── Weekly Reports ─────────────────────────────────────────
+
+export interface SectorSummary {
+  sector_id: number;
+  sector_name: string;
+  summary: string;
+  article_count: number;
+}
+
+export interface RevisionQuestion {
+  source: string;
+  article_title: string;
+  question_text: string;
+  options: string[];
+  correct_index: number;
+  user_answer: number;
+  explanation: string;
+}
+
+export interface FreshQuestion {
+  question_text: string;
+  options: string[];
+  correct_index: number;
+  explanation: string;
+  based_on_topic: string;
+}
+
+export interface ReportStats {
+  articles_in_sectors: number;
+  quizzes_taken: number;
+  daily_quizzes_taken: number;
+  total_questions: number;
+  correct_answers: number;
+  accuracy_pct: number;
+  xp_earned: number;
+}
+
+export interface WeeklyReport {
+  id: number;
+  week_start: string;
+  week_end: string;
+  sector_summaries: SectorSummary[];
+  revision_questions: RevisionQuestion[];
+  fresh_questions: FreshQuestion[];
+  stats: ReportStats;
+  created_at: string;
+}

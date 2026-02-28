@@ -97,11 +97,20 @@ body {
 /* Gauge fluid wave */
 @keyframes gauge-wave {
   0%, 100% { transform: translateX(0); }
-  50% { transform: translateX(-9px); }
+  50% { transform: translateX(-10px); }
+}
+
+@keyframes gauge-wave-slow {
+  0%, 100% { transform: translateX(0); }
+  50% { transform: translateX(7px); }
 }
 
 .animate-gauge-wave {
-  animation: gauge-wave 3s ease-in-out infinite;
+  animation: gauge-wave 2.4s ease-in-out infinite;
+}
+
+.animate-gauge-wave-slow {
+  animation: gauge-wave-slow 3.8s ease-in-out infinite;
 }
 
 /* Interactive cursor */

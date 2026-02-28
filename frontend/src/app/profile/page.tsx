@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useAuth } from "@/hooks/useAuth";
 import { apiFetch } from "@/lib/api";
 import GaugeMeter from "@/components/profile/GaugeMeter";
-import WeeklyReports from "@/components/profile/WeeklyReports";
+import WeeklyReportCards from "@/components/profile/WeeklyReportCards";
 import { FadeInUp, StaggerList, StaggerItem } from "@/components/shared/MotionWrappers";
 
 function useDecayCountdown(): string {
@@ -51,6 +51,8 @@ export default function ProfilePage() {
   const [editing, setEditing] = useState(false);
   const [editName, setEditName] = useState("");
   const [saving, setSaving] = useState(false);
+  const [editingSectors, setEditingSectors] = useState(false);
+  const [removingSector, setRemovingSector] = useState<number | null>(null);
 
   const fetchProfile = useCallback(() => {
     if (!session) return;
@@ -71,6 +73,17 @@ export default function ProfilePage() {
     }
     fetchProfile();
   }, [session, authLoading, fetchProfile]);
+
+  const removeSector = async (sectorId: number) => {
+    if (!session) return;
+    setRemovingSector(sectorId);
+    const res = await apiFetch(`/favorites/${sectorId}`, {
+      token: session.access_token,
+      method: "DELETE",
+    });
+    if (res.success) fetchProfile();
+    setRemovingSector(null);
+  };
 
   const saveDisplayName = async () => {
     if (!session || !editName.trim()) return;
@@ -214,12 +227,28 @@ export default function ProfilePage() {
         {/* Sectors */}
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-bold text-white">My Sectors</h2>
-          <span className="flex items-center gap-1.5 text-xs text-amber-400/80 font-mono bg-amber-400/5 border border-amber-400/10 px-2.5 py-1 rounded-full">
-            <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
-            </svg>
-            Next decay {decayCountdown}
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="flex items-center gap-1.5 text-xs text-amber-400/80 font-mono bg-amber-400/5 border border-amber-400/10 px-2.5 py-1 rounded-full">
+              <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
+              </svg>
+              Next decay {decayCountdown}
+            </span>
+            {data.favorites.length > 0 && (
+              <button
+                onClick={() => setEditingSectors((e) => !e)}
+                className="text-xs text-gray-500 hover:text-gray-300 transition-colors px-2 py-1"
+              >
+                {editingSectors ? "Done" : "Edit"}
+              </button>
+            )}
+            <Link
+              href="/profile/onboarding"
+              className="text-xs text-teal-400 hover:text-teal-300 transition-colors px-2 py-1"
+            >
+              + Add
+            </Link>
+          </div>
         </div>
         {data.favorites.length === 0 ? (
           <div className="text-center py-8 bg-gray-900 border border-gray-800 rounded-xl">
@@ -235,12 +264,22 @@ export default function ProfilePage() {
           <StaggerList className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {data.favorites.map((fav) => (
               <StaggerItem key={fav.sector_id}>
-                <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 flex items-center gap-4">
+                <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 flex items-center gap-4 relative">
                   <GaugeMeter score={fav.gauge_score} />
                   <div>
                     <h3 className="font-semibold text-white">{fav.sectors.name}</h3>
                     <p className="text-xs text-gray-500 capitalize">{fav.sectors.category}</p>
                   </div>
+                  {editingSectors && (
+                    <button
+                      onClick={() => removeSector(fav.sector_id)}
+                      disabled={removingSector === fav.sector_id}
+                      className="absolute top-2 right-2 w-6 h-6 flex items-center justify-center rounded-full bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors text-xs"
+                      title="Remove sector"
+                    >
+                      {removingSector === fav.sector_id ? "..." : "×"}
+                    </button>
+                  )}
                 </div>
               </StaggerItem>
             ))}
@@ -249,7 +288,7 @@ export default function ProfilePage() {
 
         {/* Weekly Reports */}
         <h2 id="weekly-reports" className="text-lg font-bold text-white mb-4 mt-8">Weekly Reports</h2>
-        <WeeklyReports token={session!.access_token} />
+        <WeeklyReportCards token={session!.access_token} />
       </div>
     </FadeInUp>
   );

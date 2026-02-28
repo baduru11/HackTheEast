@@ -5,6 +5,8 @@ import { useEffect, useState, useId } from "react";
 interface GaugeMeterProps {
   score: number;
   size?: number;
+  from?: number;
+  delay?: number;
 }
 
 function getColors(score: number): [string, string] {
@@ -13,7 +15,7 @@ function getColors(score: number): [string, string] {
   return ["#14b8a6", "#2dd4bf"]; // teal-500 → teal-400
 }
 
-export default function GaugeMeter({ score, size = 80 }: GaugeMeterProps) {
+export default function GaugeMeter({ score, size = 80, from = 0, delay = 0 }: GaugeMeterProps) {
   const uid = useId();
   const w = Math.round(size * 0.5);
   const h = size;
@@ -22,20 +24,25 @@ export default function GaugeMeter({ score, size = 80 }: GaugeMeterProps) {
   const ih = h - pad * 2;
   const rx = iw / 2;
 
-  const [fill, setFill] = useState(0);
+  const initial = Math.max(0, Math.min(100, from)) / 100;
+  const [fill, setFill] = useState(initial);
   const target = Math.max(0, Math.min(100, score)) / 100;
 
   useEffect(() => {
+    if (delay > 0) {
+      const tid = setTimeout(() => setFill(target), delay);
+      return () => clearTimeout(tid);
+    }
     const id = requestAnimationFrame(() => setFill(target));
     return () => cancelAnimationFrame(id);
-  }, [target]);
+  }, [target, delay]);
 
   const fillH = fill * ih;
   const fillY = pad + ih - fillH;
   const [c1, c2] = getColors(score);
 
-  // Wave path: sine wave wider than tube for seamless horizontal drift
-  const amp = 2;
+  // Primary wave path
+  const amp = 3.5;
   const segments = 8;
   const totalW = iw * 2;
   const segW = totalW / segments;
@@ -48,6 +55,19 @@ export default function GaugeMeter({ score, size = 80 }: GaugeMeterProps) {
     wave += ` Q${cx},${cy} ${ex},0`;
   }
   wave += ` V${amp + 2} H${startX} Z`;
+
+  // Secondary wave path (different frequency)
+  const amp2 = 2.5;
+  const segments2 = 6;
+  const segW2 = totalW / segments2;
+  let wave2 = `M${startX},0`;
+  for (let i = 0; i < segments2; i++) {
+    const cx = startX + segW2 * i + segW2 / 2;
+    const cy = i % 2 === 0 ? -amp2 : amp2;
+    const ex = startX + segW2 * (i + 1);
+    wave2 += ` Q${cx},${cy} ${ex},0`;
+  }
+  wave2 += ` V${amp2 + 2} H${startX} Z`;
 
   const clipId = CSS.escape(`${uid}-c`);
   const gradId = CSS.escape(`${uid}-g`);
@@ -70,23 +90,32 @@ export default function GaugeMeter({ score, size = 80 }: GaugeMeterProps) {
 
         {/* Clipped liquid + wave */}
         <g clipPath={`url(#${clipId})`}>
-          {/* Liquid body */}
-          {fill > 0 && (
-            <rect
-              x={pad}
-              y={fillY}
-              width={iw}
-              height={fillH + 1}
-              fill={`url(#${gradId})`}
-              style={{ transition: "y 1s ease-out, height 1s ease-out" }}
-            />
-          )}
+          {/* Liquid body — always in DOM so CSS transition can animate */}
+          <rect
+            x={pad}
+            width={iw}
+            fill={`url(#${gradId})`}
+            style={{
+              y: fill > 0 ? fillY : pad + ih,
+              height: fill > 0 ? fillH + 1 : 0,
+              transition: "y 1.2s cubic-bezier(0.34, 1.56, 0.64, 1), height 1.2s cubic-bezier(0.34, 1.56, 0.64, 1)",
+            }}
+          />
 
-          {/* Wave on liquid surface */}
+          {/* Primary wave on liquid surface */}
           {fill > 0 && fill < 1 && (
-            <g style={{ transform: `translate(${pad + iw / 2}px, ${fillY}px)`, transition: "transform 1s ease-out" }}>
+            <g style={{ transform: `translate(${pad + iw / 2}px, ${fillY}px)`, transition: "transform 1.2s cubic-bezier(0.34, 1.56, 0.64, 1)" }}>
               <g className="animate-gauge-wave">
                 <path d={wave} fill={`url(#${gradId})`} />
+              </g>
+            </g>
+          )}
+
+          {/* Secondary wave — different frequency, offset phase */}
+          {fill > 0 && fill < 1 && (
+            <g style={{ transform: `translate(${pad + iw / 2}px, ${fillY + 1}px)`, transition: "transform 1.2s cubic-bezier(0.34, 1.56, 0.64, 1)" }} opacity={0.35}>
+              <g className="animate-gauge-wave-slow">
+                <path d={wave2} fill={`url(#${gradId})`} />
               </g>
             </g>
           )}

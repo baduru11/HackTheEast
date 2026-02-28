@@ -7,6 +7,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { FadeInUp } from "@/components/shared/MotionWrappers";
 import type { Quiz, QuestionFeedback } from "@/types";
 import FinaMascot from "@/components/quiz/FinaMascot";
+import GaugeMeter from "@/components/profile/GaugeMeter";
 
 function ScoreRing({ score, total }: { score: number; total: number }) {
   const pct = total > 0 ? score / total : 0;
@@ -56,6 +57,7 @@ export default function QuizPage({ params }: { params: Promise<{ id: string }> }
     total_questions: number;
     xp_earned: number;
     gauge_change: number;
+    new_gauge_score: number;
     explanations: QuestionFeedback[];
   } | null>(null);
   const [loading, setLoading] = useState(true);
@@ -222,19 +224,32 @@ export default function QuizPage({ params }: { params: Promise<{ id: string }> }
               </motion.div>
             )}
             <p className="text-lg font-semibold text-white mt-4 mb-1">{message}</p>
-            <div className="flex items-center justify-center gap-4 mt-3">
+            <div className="flex items-center justify-center gap-4 mt-4">
               <div className="flex items-center gap-1.5 bg-teal-400/10 px-3 py-1.5 rounded-lg">
                 <svg className="w-4 h-4 text-teal-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                 </svg>
                 <span className="text-sm font-medium text-teal-400">+{result.xp_earned} XP</span>
               </div>
-              <div className="flex items-center gap-1.5 bg-green-400/10 px-3 py-1.5 rounded-lg">
-                <svg className="w-4 h-4 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
-                </svg>
-                <span className="text-sm font-medium text-green-400">+{result.gauge_change} Gauge</span>
-              </div>
+              {result.gauge_change > 0 && (
+                <div className="flex items-center gap-2 bg-green-400/10 px-3 py-2 rounded-lg">
+                  <GaugeMeter
+                    score={result.new_gauge_score}
+                    from={result.new_gauge_score - result.gauge_change}
+                    delay={800}
+                    size={52}
+                  />
+                  <div className="flex flex-col">
+                    <span className="text-lg font-bold text-green-400">+{result.gauge_change}</span>
+                    <span className="text-[10px] text-gray-500">Gauge</span>
+                  </div>
+                </div>
+              )}
+              {result.gauge_change === 0 && (
+                <div className="flex items-center gap-1.5 bg-gray-400/10 px-3 py-1.5 rounded-lg">
+                  <span className="text-sm font-medium text-gray-400">No gauge change</span>
+                </div>
+              )}
             </div>
           </div>
 

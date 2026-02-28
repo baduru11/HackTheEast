@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { apiFetch } from "@/lib/api";
+import type { Favorite } from "@/types";
 
 const ALL_SECTORS = [
   { id: 1, name: "Asia", category: "world" },
@@ -24,11 +25,31 @@ const ALL_SECTORS = [
 ];
 
 export default function OnboardingPage() {
-  const { session } = useAuth();
+  const { session, loading: authLoading } = useAuth();
   const router = useRouter();
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [checking, setChecking] = useState(true);
+
+  // Skip onboarding if user already has favorites
+  useEffect(() => {
+    if (authLoading || !session) {
+      setChecking(false);
+      return;
+    }
+    apiFetch<Favorite[]>("/favorites", { token: session.access_token })
+      .then((res) => {
+        if (res.success && res.data && res.data.length > 0) {
+          router.replace("/");
+        } else {
+          setChecking(false);
+        }
+      })
+      .catch(() => setChecking(false));
+  }, [session, authLoading, router]);
+
+  if (checking) return null;
 
   const toggle = (id: number) => {
     const next = new Set(selected);
