@@ -50,6 +50,12 @@ export default function Navbar() {
               Feed
             </Link>
             <Link
+              href="/social"
+              className="text-gray-300 hover:text-teal-400 transition-colors text-sm font-medium"
+            >
+              Social
+            </Link>
+            <Link
               href="/leaderboard"
               className="text-gray-300 hover:text-teal-400 transition-colors text-sm font-medium"
             >
@@ -143,6 +149,20 @@ export default function Navbar() {
                 className="block text-sm text-gray-300 hover:text-teal-400 py-1"
               >
                 Feed
+              </Link>
+              <Link
+                href="/social"
+                onClick={() => setMobileOpen(false)}
+                className="block text-sm text-gray-300 hover:text-teal-400 py-1"
+              >
+                Social
+              </Link>
+              <Link
+                href="/friends"
+                onClick={() => setMobileOpen(false)}
+                className="block text-sm text-gray-300 hover:text-teal-400 py-1"
+              >
+                Friends
               </Link>
               <Link
                 href="/leaderboard"
