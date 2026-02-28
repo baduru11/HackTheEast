@@ -106,6 +106,34 @@ async def _bulk_process():
     print(f"Bulk processing done: {rounds} rounds")
 
 
+@router.get("/debug/fix-sources")
+async def debug_fix_sources(background_tasks: BackgroundTasks):
+    """Resolve redirect URLs and fix source names for existing done articles."""
+    background_tasks.add_task(_fix_sources)
+    return {"status": "started"}
+
+
+async def _fix_sources():
+    from app.services.pipeline import resolve_url
+    # Get all done articles with finnhub proxy URLs
+    result = db.supabase.table("articles").select("id, original_url, source_name").eq(
+        "processing_status", "done"
+    ).like("original_url", "%finnhub.io/api/news%").execute()
+
+    fixed = 0
+    for article in result.data:
+        final_url, real_source = await resolve_url(article["original_url"])
+        updates = {}
+        if final_url != article["original_url"]:
+            updates["original_url"] = final_url
+        if real_source:
+            updates["source_name"] = real_source
+        if updates:
+            await db.update_article(article["id"], updates)
+            fixed += 1
+    print(f"Fixed sources for {fixed} articles")
+
+
 @router.get("/{article_id}")
 async def get_article(article_id: int):
     article = await db.get_article_by_id(article_id)
