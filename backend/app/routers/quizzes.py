@@ -1,0 +1,107 @@
+from fastapi import APIRouter, Depends
+
+from app.db import supabase as db
+from app.dependencies import get_current_user
+from app.models.quiz import QuizSubmit
+from app.services.gauge import calculate_gauge_gain
+from app.services.xp import calculate_quiz_xp
+
+router = APIRouter(prefix="/api/v1/articles", tags=["quizzes"])
+
+
+@router.get("/{article_id}/quiz")
+async def get_quiz(article_id: int):
+    quiz = await db.get_quiz_by_article(article_id)
+    if not quiz:
+        return {"success": False, "error": {"code": "NOT_FOUND", "message": "Quiz not found"}}
+
+    # Strip correct answers for display
+    questions = []
+    for q in quiz.get("quiz_questions", []):
+        questions.append({
+            "id": q["id"],
+            "question_text": q["question_text"],
+            "options": q["options"],
+            "order_num": q["order_num"],
+        })
+
+    return {
+        "success": True,
+        "data": {
+            "id": quiz["id"],
+            "article_id": quiz["article_id"],
+            "questions": sorted(questions, key=lambda x: x["order_num"]),
+        },
+    }
+
+
+@router.post("/{article_id}/quiz")
+async def submit_quiz(
+    article_id: int,
+    submission: QuizSubmit,
+    user_id: str = Depends(get_current_user),
+):
+    quiz = await db.get_quiz_by_article(article_id)
+    if not quiz:
+        return {"success": False, "error": {"code": "NOT_FOUND", "message": "Quiz not found"}}
+
+    # Check if already attempted
+    existing = await db.get_quiz_attempt(user_id, quiz["id"])
+    if existing:
+        return {"success": False, "error": {"code": "QUIZ_ALREADY_COMPLETED", "message": "You have already completed this quiz"}}
+
+    # Grade
+    questions = sorted(quiz["quiz_questions"], key=lambda x: x["order_num"])
+    if len(submission.answers) != len(questions):
+        return {"success": False, "error": {"code": "INVALID_ANSWERS", "message": f"Expected {len(questions)} answers"}}
+
+    score = 0
+    feedback = []
+    for i, q in enumerate(questions):
+        is_correct = submission.answers[i] == q["correct_index"]
+        if is_correct:
+            score += 1
+        feedback.append({
+            "question_text": q["question_text"],
+            "your_answer": submission.answers[i],
+            "correct_answer": q["correct_index"],
+            "is_correct": is_correct,
+            "explanation": q["explanation"],
+        })
+
+    total = len(questions)
+
+    # Calculate rewards
+    gauge_gain = await calculate_gauge_gain(score, total)
+    xp_earned = await calculate_quiz_xp(user_id, score, total)
+
+    # Save attempt
+    await db.insert_quiz_attempt(user_id, quiz["id"], score, total, xp_earned)
+
+    # Update XP
+    await db.add_xp(user_id, xp_earned)
+
+    # Update gauge for relevant sectors
+    article = await db.get_article_by_id(article_id)
+    sector_ids = [s["sector_id"] for s in article.get("article_sectors", [])]
+    favorites = await db.get_user_favorites(user_id)
+    fav_sector_ids = {f["sector_id"]: f for f in favorites}
+
+    new_gauge = 0
+    for sid in sector_ids:
+        if sid in fav_sector_ids:
+            current = fav_sector_ids[sid]["gauge_score"]
+            new_gauge = min(current + gauge_gain, 100)
+            await db.update_gauge(user_id, sid, new_gauge)
+
+    return {
+        "success": True,
+        "data": {
+            "score": score,
+            "total_questions": total,
+            "xp_earned": xp_earned,
+            "gauge_change": gauge_gain,
+            "new_gauge_score": new_gauge,
+            "explanations": feedback,
+        },
+    }
