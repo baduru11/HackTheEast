@@ -1,3 +1,5 @@
+import asyncio
+
 from app.db import supabase as db
 from app.services import finnhub, gnews, scraper, llm
 
@@ -86,79 +88,85 @@ async def recover_stuck_articles():
             print(f"Recovered {recovered} articles stuck in '{status}'")
 
 
-async def process_pending_articles(batch_size: int = 5):
-    """Scrape and generate AI content for pending articles."""
-    articles, _ = await db.get_articles(status="pending", page=1, limit=batch_size)
+async def _process_single_article(article: dict) -> bool:
+    """Process a single article. Returns True on success, False on failure."""
+    article_id = article["id"]
+    try:
+        # Step 1: Scrape
+        await db.update_article(article_id, {"processing_status": "scraping"})
+        scraped = await scraper.scrape_article(article["original_url"])
 
-    done = 0
-    failed = 0
-    for article in articles:
-        article_id = article["id"]
+        if not scraped:
+            await db.update_article(article_id, {"processing_status": "failed"})
+            return False
+
+        raw_text = scraped.get("text", "")
+        if not raw_text or len(raw_text) < 100:
+            await db.update_article(article_id, {"processing_status": "failed"})
+            return False
+
+        author = scraped.get("author")
+        await db.update_article(article_id, {
+            "raw_content": raw_text,
+            "author": author,
+            "processing_status": "generating",
+        })
+
+        # Step 2: LLM generate
+        result = await llm.generate_article_content(article["headline"], raw_text)
+
+        if not result:
+            await db.update_article(article_id, {"processing_status": "failed"})
+            return False
+
+        # Save AI content
+        await db.update_article(article_id, {
+            "ai_summary": result.summary,
+            "ai_tutorial": result.tutorial,
+            "processing_status": "done",
+        })
+
+        # Save sectors
+        if result.sectors:
+            sectors = await db.get_all_sectors()
+            sector_map = {s["slug"]: s["id"] for s in sectors}
+            sector_ids = [sector_map[s] for s in result.sectors if s in sector_map]
+            if sector_ids:
+                existing = article.get("article_sectors", [])
+                existing_ids = {s.get("sector_id") for s in existing} if existing else set()
+                new_ids = [sid for sid in sector_ids if sid not in existing_ids]
+                if new_ids:
+                    await db.insert_article_sectors(article_id, new_ids)
+
+        # Save quiz
+        await db.insert_quiz(article_id, [q.model_dump() for q in result.questions])
+
+        # Notify users who favorite these sectors
+        await _notify_sector_users(article_id, article["headline"])
+        return True
+
+    except Exception as e:
+        print(f"Pipeline error for article {article_id}: {e}")
         try:
-            # Step 1: Scrape
-            await db.update_article(article_id, {"processing_status": "scraping"})
-            scraped = await scraper.scrape_article(article["original_url"])
+            await db.update_article(article_id, {"processing_status": "failed"})
+        except Exception:
+            pass
+        return False
 
-            if not scraped:
-                await db.update_article(article_id, {"processing_status": "failed"})
-                failed += 1
-                continue
 
-            raw_text = scraped.get("text", "")
-            if not raw_text or len(raw_text) < 100:
-                await db.update_article(article_id, {"processing_status": "failed"})
-                failed += 1
-                continue
+async def process_pending_articles(batch_size: int = 10):
+    """Scrape and generate AI content for pending articles in parallel."""
+    articles, _ = await db.get_articles(status="pending", page=1, limit=batch_size)
+    if not articles:
+        return
 
-            author = scraped.get("author")
-            await db.update_article(article_id, {
-                "raw_content": raw_text,
-                "author": author,
-                "processing_status": "generating",
-            })
+    results = await asyncio.gather(
+        *[_process_single_article(a) for a in articles],
+        return_exceptions=True,
+    )
 
-            # Step 2: LLM generate
-            result = await llm.generate_article_content(article["headline"], raw_text)
-
-            if not result:
-                await db.update_article(article_id, {"processing_status": "failed"})
-                failed += 1
-                continue
-
-            # Save AI content
-            await db.update_article(article_id, {
-                "ai_summary": result.summary,
-                "ai_tutorial": result.tutorial,
-                "processing_status": "done",
-            })
-
-            # Save sectors
-            if result.sectors:
-                sectors = await db.get_all_sectors()
-                sector_map = {s["slug"]: s["id"] for s in sectors}
-                sector_ids = [sector_map[s] for s in result.sectors if s in sector_map]
-                if sector_ids:
-                    existing = article.get("article_sectors", [])
-                    existing_ids = {s.get("sector_id") for s in existing} if existing else set()
-                    new_ids = [sid for sid in sector_ids if sid not in existing_ids]
-                    if new_ids:
-                        await db.insert_article_sectors(article_id, new_ids)
-
-            # Save quiz
-            await db.insert_quiz(article_id, [q.model_dump() for q in result.questions])
-
-            # Notify users who favorite these sectors
-            await _notify_sector_users(article_id, article["headline"])
-            done += 1
-
-        except Exception as e:
-            print(f"Pipeline error for article {article_id}: {e}")
-            try:
-                await db.update_article(article_id, {"processing_status": "failed"})
-            except Exception:
-                pass
-            failed += 1
-
+    done = sum(1 for r in results if r is True)
+    failed = len(results) - done
     print(f"Processed {len(articles)} articles: {done} done, {failed} failed")
 
 
