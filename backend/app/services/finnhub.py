@@ -19,7 +19,10 @@ PAYWALLED_SOURCES = {"MarketWatch", "SeekingAlpha", "Bloomberg", "Barron's", "WS
 # Sources where Finnhub proxies/hides the real URL (returns finnhub.io links)
 BROKEN_URL_SOURCES = {"Yahoo", "Motley Fool", "Business Insider", "Forbes", "ChartMill", "Benzinga"}
 
-BLOCKED_SOURCES = PAYWALLED_SOURCES | BROKEN_URL_SOURCES
+# Press releases / wire services (not real journalism, clutters feed)
+WIRE_SOURCES = {"GlobalNewswire", "BusinessWire", "PR Newswire", "GlobeNewsWire", "Cryptocurrency News"}
+
+BLOCKED_SOURCES = PAYWALLED_SOURCES | BROKEN_URL_SOURCES | WIRE_SOURCES
 
 BROKEN_IMAGE_PATTERNS = ["s.yimg.com", "media.zenfs.com", "static.finnhub.io", "static2.finnhub.io"]
 

@@ -211,7 +211,11 @@ async def _process_single_article(article: dict) -> bool:
         if not raw_text or len(raw_text) < 100:
             raw_text = article.get("snippet", "")
 
+        # Ultimate fallback: use headline (some RSS feeds like Investing.com have no description)
         if not raw_text or len(raw_text) < 30:
+            raw_text = article.get("headline", "")
+
+        if not raw_text or len(raw_text) < 20:
             await db.update_article(article_id, {"processing_status": "failed"})
             return False
 
