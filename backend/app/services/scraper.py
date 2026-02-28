@@ -1,0 +1,50 @@
+import asyncio
+from concurrent.futures import ThreadPoolExecutor
+
+import httpx
+import trafilatura
+
+executor = ThreadPoolExecutor(max_workers=4)
+
+
+def _extract_article(html: str) -> dict | None:
+    """Synchronous trafilatura extraction (runs in thread pool)."""
+    result = trafilatura.extract(
+        html,
+        no_fallback=True,
+        favor_precision=True,
+        include_comments=False,
+        include_tables=False,
+        output_format="json",
+        with_metadata=True,
+    )
+    if result:
+        import json
+        return json.loads(result)
+    return None
+
+
+async def scrape_article(url: str) -> dict | None:
+    """Scrape a single article URL and extract content."""
+    try:
+        async with httpx.AsyncClient(
+            timeout=30,
+            follow_redirects=True,
+            headers={"User-Agent": "Mozilla/5.0 (compatible; FinaMeter/1.0)"},
+        ) as client:
+            response = await client.get(url)
+            response.raise_for_status()
+            html = response.text
+
+        loop = asyncio.get_event_loop()
+        extracted = await loop.run_in_executor(executor, _extract_article, html)
+        return extracted
+    except Exception as e:
+        print(f"Scraper error ({url}): {e}")
+        return None
+
+
+async def scrape_batch(urls: list[str]) -> list[dict | None]:
+    """Scrape multiple URLs in parallel."""
+    tasks = [scrape_article(url) for url in urls]
+    return await asyncio.gather(*tasks, return_exceptions=True)
