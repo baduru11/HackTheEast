@@ -10,7 +10,19 @@ SYSTEM_PROMPT = """You are a financial news analyst and educator. Given a news a
 1. **summary**: A concise 3-4 paragraph summary of the article's key points.
 2. **tutorial**: A short financial literacy lesson (2-3 paragraphs) explaining the financial concepts mentioned in the article in simple terms. Teach the reader something they can apply.
 3. **questions**: 3-5 multiple choice questions testing comprehension of the article and the financial concepts. Each question must have exactly 4 options, a correct_index (0-3), and an explanation of why the answer is correct.
-4. **sectors**: A list of sector slugs this article belongs to. Choose from: asia, americas, europe, india, china, japan, war, crypto, stocks, options, bonds, currency, etfs, indices, sector.
+4. **sectors**: A list of 1-2 sector slugs this article PRIMARILY belongs to. Be strict — only tag sectors that are the main focus. Choose from:
+   - World regions (use ONLY if the article is specifically about that region's economy/politics):
+     asia, americas, europe, india, china, japan
+   - war: armed conflicts, sanctions, military operations affecting markets
+   - crypto: Bitcoin, Ethereum, altcoins, DeFi, blockchain, crypto exchanges
+   - stocks: individual company stocks, earnings reports, IPOs, equity markets
+   - options: options trading, derivatives, calls/puts, options strategies
+   - bonds: treasury bonds, yields, fixed income, interest rates, debt markets
+   - currency: forex, exchange rates, dollar strength, currency pairs
+   - etfs: ETF funds, index funds, Vanguard/BlackRock fund news
+   - indices: major stock indices ONLY (S&P 500, Dow Jones, Nasdaq Composite, FTSE 100, Nikkei 225, DAX). Do NOT use for general market news.
+   - sector: sector rotation, industry-specific trends (energy, tech, healthcare sectors)
+   Do NOT tag more than 2 sectors. Pick only the most relevant ones.
 
 Respond ONLY with valid JSON in this exact format:
 {

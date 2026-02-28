@@ -30,7 +30,7 @@ scheduler = AsyncIOScheduler()
 async def process_pending_job():
     """Proper async wrapper for processing pending articles."""
     await recover_stuck_articles()
-    await process_pending_articles(batch_size=5)
+    await process_pending_articles(batch_size=15)
 
 
 async def rss_ingest_job():
@@ -41,7 +41,7 @@ async def rss_ingest_job():
 async def finnhub_adaptive_job():
     """Adaptively poll Finnhub based on market hours."""
     await ingest_finnhub()
-    await process_pending_articles(batch_size=5)
+    await process_pending_articles(batch_size=15)
 
     # Reschedule with new interval
     interval = get_adaptive_interval_minutes()
@@ -87,10 +87,10 @@ def setup_scheduler():
         replace_existing=True,
     )
 
-    # Process pending articles every 5 min
+    # Process pending articles every 2 min (bumped up temporarily)
     scheduler.add_job(
         process_pending_job,
-        IntervalTrigger(minutes=5),
+        IntervalTrigger(minutes=2),
         id="process_pending",
         name="Process pending articles (scrape + LLM)",
         replace_existing=True,
