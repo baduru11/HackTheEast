@@ -135,8 +135,8 @@ async def fetch_quotes_for_tickers(tickers: list[str]) -> list[dict]:
 
 async def get_quote(symbol: str) -> dict:
     """Fetch real-time quote for a single symbol."""
-    async with httpx.AsyncClient() as client:
-        resp = await client.get(
+    async with httpx.AsyncClient() as http:
+        resp = await http.get(
             "https://finnhub.io/api/v1/quote",
             params={"symbol": symbol, "token": settings.finnhub_api_key},
         )
@@ -146,8 +146,8 @@ async def get_quote(symbol: str) -> dict:
 
 async def get_candles(symbol: str, resolution: str, from_ts: int, to_ts: int) -> dict:
     """Fetch candle data for charting."""
-    async with httpx.AsyncClient() as client:
-        resp = await client.get(
+    async with httpx.AsyncClient() as http:
+        resp = await http.get(
             "https://finnhub.io/api/v1/stock/candle",
             params={
                 "symbol": symbol,
@@ -158,4 +158,7 @@ async def get_candles(symbol: str, resolution: str, from_ts: int, to_ts: int) ->
             },
         )
         resp.raise_for_status()
-        return resp.json()
+        data = resp.json()
+        if data.get("s") == "no_data":
+            raise ValueError(f"No candle data available for {symbol}")
+        return data

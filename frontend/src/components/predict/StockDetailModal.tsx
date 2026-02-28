@@ -28,7 +28,7 @@ export default function StockDetailModal({
   stock,
   onClose,
 }: StockDetailModalProps) {
-  const [range, setRange] = useState<RangeOption>("1D");
+  const [range, setRange] = useState<RangeOption>("7D");
   const [chartData, setChartData] = useState<ChartDataPoint[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");

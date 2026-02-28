@@ -96,5 +96,8 @@ async def get_stock_candles(ticker: str, range: str = "1D"):
     try:
         candles = await finnhub.get_candles(ticker, resolution, from_ts, now)
         return {"success": True, "data": candles}
+    except ValueError:
+        # No data for this range (e.g. market closed on weekend for 1D)
+        return {"success": False, "error": {"code": "NO_DATA", "message": f"No data for {range} range. Try a wider range."}}
     except Exception as e:
         return {"success": False, "error": {"code": "FETCH_ERROR", "message": str(e)}}

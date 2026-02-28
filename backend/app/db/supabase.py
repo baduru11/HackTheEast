@@ -467,8 +467,8 @@ async def delete_reaction(activity_id: str, user_id: str):
 # ── Daily Quiz ──────────────────────────────────────────────
 
 async def get_daily_quiz_by_date(date_str: str):
-    result = supabase.table("daily_quizzes").select("*").eq("date", date_str).maybe_single().execute()
-    return result.data
+    result = supabase.table("daily_quizzes").select("*").eq("date", date_str).limit(1).execute()
+    return result.data[0] if result.data else None
 
 
 async def insert_daily_quiz(date_str: str, questions: list[dict], source_article_ids: list[int]):
@@ -486,10 +486,10 @@ async def get_daily_quiz_attempt(user_id: str, quiz_id: int):
         .select("*")
         .eq("user_id", user_id)
         .eq("quiz_id", quiz_id)
-        .maybe_single()
+        .limit(1)
         .execute()
     )
-    return result.data
+    return result.data[0] if result.data else None
 
 
 async def insert_daily_quiz_attempt(user_id: str, quiz_id: int, answers: list[int], score: int, total: int, xp_earned: int):
@@ -512,8 +512,8 @@ async def get_active_stock_pool():
 
 
 async def get_daily_stocks(date_str: str):
-    result = supabase.table("daily_stocks").select("*").eq("date", date_str).maybe_single().execute()
-    return result.data
+    result = supabase.table("daily_stocks").select("*").eq("date", date_str).limit(1).execute()
+    return result.data[0] if result.data else None
 
 
 async def insert_daily_stocks(date_str: str, tickers: list[str]):
@@ -531,10 +531,10 @@ async def get_user_prediction(user_id: str, date_str: str, ticker: str):
         .eq("user_id", user_id)
         .eq("date", date_str)
         .eq("ticker", ticker)
-        .maybe_single()
+        .limit(1)
         .execute()
     )
-    return result.data
+    return result.data[0] if result.data else None
 
 
 async def insert_prediction(user_id: str, date_str: str, ticker: str, direction: str, price_at_bet: float):
