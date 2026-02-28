@@ -25,7 +25,7 @@ async def mark_read(
     notification_id: int,
     user_id: str = Depends(get_current_user),
 ):
-    await db.mark_notification_read(notification_id)
+    await db.mark_notification_read(notification_id, user_id)
     return {"success": True}
 
 

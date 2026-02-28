@@ -48,7 +48,7 @@ async def get_articles(
 
 async def get_article_by_id(article_id: int):
     result = supabase.table("articles").select(
-        "*, article_sectors(sector_id, sectors(name, slug)), article_tickers(*)"
+        "id, finnhub_id, gnews_url, source_name, headline, snippet, original_url, image_url, author, published_at, language, ai_summary, ai_tutorial, lesson_data, processing_status, created_at, updated_at, article_sectors(sector_id, sectors(name, slug)), article_tickers(*)"
     ).eq("id", article_id).single().execute()
     return result.data
 
@@ -128,6 +128,7 @@ async def insert_quiz(article_id: int, questions: list[dict]) -> int:
             "correct_index": q["correct_index"],
             "explanation": q["explanation"],
             "order_num": i + 1,
+            "question_type": q.get("question_type"),
         }
         for i, q in enumerate(questions)
     ]
@@ -226,8 +227,8 @@ async def get_notifications(user_id: str, page: int = 1, limit: int = 20):
     return result.data, result.count
 
 
-async def mark_notification_read(notification_id: int):
-    supabase.table("notifications").update({"read": True}).eq("id", notification_id).execute()
+async def mark_notification_read(notification_id: int, user_id: str):
+    supabase.table("notifications").update({"read": True}).eq("id", notification_id).eq("user_id", user_id).execute()
 
 
 async def mark_all_notifications_read(user_id: str):

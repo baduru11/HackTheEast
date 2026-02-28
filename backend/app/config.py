@@ -4,7 +4,7 @@ from pydantic_settings import BaseSettings
 class Settings(BaseSettings):
     supabase_url: str
     supabase_service_key: str
-    supabase_jwt_secret: str = ""
+    supabase_jwt_secret: str = "changeme"
     finnhub_api_key: str
     gnews_api_key: str
     openrouter_api_key: str

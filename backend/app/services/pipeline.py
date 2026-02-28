@@ -225,17 +225,19 @@ async def _process_single_article(article: dict) -> bool:
             "processing_status": "generating",
         })
 
-        # Step 2: LLM generate
-        result = await llm.generate_article_content(article["headline"], raw_text)
+        # Step 2: LLM generate lesson
+        result = await llm.generate_lesson(article["headline"], raw_text)
 
         if not result:
             await db.update_article(article_id, {"processing_status": "failed"})
             return False
 
         # Save AI content
+        import json
         await db.update_article(article_id, {
             "ai_summary": result.summary,
-            "ai_tutorial": result.tutorial,
+            "ai_tutorial": None,
+            "lesson_data": json.dumps(result.model_dump()),
             "processing_status": "done",
         })
 
@@ -251,8 +253,18 @@ async def _process_single_article(article: dict) -> bool:
                 if new_ids:
                     await db.insert_article_sectors(article_id, new_ids)
 
-        # Save quiz
-        await db.insert_quiz(article_id, [q.model_dump() for q in result.questions])
+        # Save quiz (6 questions with question_type)
+        quiz_rows = [
+            {
+                "question": q.prompt,
+                "options": q.options,
+                "correct_index": q.correct_index,
+                "explanation": q.explanation,
+                "question_type": q.type,
+            }
+            for q in result.quiz
+        ]
+        await db.insert_quiz(article_id, quiz_rows)
 
         # Notify users who favorite these sectors
         await _notify_sector_users(article_id, article["headline"])

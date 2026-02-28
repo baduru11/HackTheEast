@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from datetime import datetime
 
 
@@ -12,9 +12,9 @@ class ProfileOut(BaseModel):
 
 
 class ProfileUpdate(BaseModel):
-    display_name: str | None = None
-    username: str | None = None
-    avatar_url: str | None = None
+    display_name: str | None = Field(None, max_length=100)
+    username: str | None = Field(None, max_length=50, pattern=r'^[a-zA-Z0-9_-]+$')
+    avatar_url: str | None = Field(None, max_length=500)
 
 
 class DashboardOut(BaseModel):

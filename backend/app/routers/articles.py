@@ -1,9 +1,13 @@
-from fastapi import APIRouter, BackgroundTasks, Depends, Query
+import os
+
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 
 from app.db import supabase as db
 from app.dependencies import get_current_user
 
 router = APIRouter(prefix="/api/v1/articles", tags=["articles"])
+
+IS_DEBUG = os.getenv("DEBUG", "false").lower() == "true"
 
 
 @router.get("/feed")
@@ -67,27 +71,29 @@ async def get_headlines():
 
 @router.get("/debug/process")
 async def debug_process(user_id: str = Depends(get_current_user)):
-    """Manually trigger pipeline processing (auth required)."""
-    import traceback
+    """Manually trigger pipeline processing (debug mode only)."""
+    if not IS_DEBUG:
+        raise HTTPException(status_code=404, detail="Not found")
     from app.services.pipeline import process_pending_articles, recover_stuck_articles
-    results = {"recover": None, "process": None, "error": None}
+    results = {"recover": None, "process": None}
     try:
         await recover_stuck_articles()
         results["recover"] = "ok"
     except Exception as e:
-        results["recover"] = f"{e}"
+        results["recover"] = str(e)
     try:
         await process_pending_articles(batch_size=2)
         results["process"] = "ok"
     except Exception as e:
-        results["process"] = f"{e}"
-        results["error"] = traceback.format_exc()
+        results["process"] = str(e)
     return results
 
 
 @router.get("/debug/bulk")
 async def debug_bulk(background_tasks: BackgroundTasks, user_id: str = Depends(get_current_user)):
-    """Kick off bulk processing in the background (auth required)."""
+    """Kick off bulk processing (debug mode only)."""
+    if not IS_DEBUG:
+        raise HTTPException(status_code=404, detail="Not found")
     background_tasks.add_task(_bulk_process)
     _, pending_count = await db.get_articles(status="pending", page=1, limit=1)
     return {"status": "started", "pending": pending_count or 0}
@@ -109,7 +115,9 @@ async def _bulk_process():
 
 @router.get("/debug/fix-sources")
 async def debug_fix_sources(background_tasks: BackgroundTasks, user_id: str = Depends(get_current_user)):
-    """Resolve redirect URLs and fix source names (auth required)."""
+    """Resolve redirect URLs and fix source names (debug mode only)."""
+    if not IS_DEBUG:
+        raise HTTPException(status_code=404, detail="Not found")
     background_tasks.add_task(_fix_sources)
     return {"status": "started"}
 
@@ -133,6 +141,85 @@ async def _fix_sources():
             await db.update_article(article["id"], updates)
             fixed += 1
     print(f"Fixed sources for {fixed} articles")
+
+
+@router.get("/debug/reprocess-lessons")
+async def debug_reprocess_lessons(background_tasks: BackgroundTasks, user_id: str = Depends(get_current_user)):
+    """Re-process existing articles with the new lesson prompt (debug mode only)."""
+    if not IS_DEBUG:
+        raise HTTPException(status_code=404, detail="Not found")
+    background_tasks.add_task(_reprocess_lessons)
+    # Count articles needing reprocessing
+    result = db.supabase.table("articles").select("id", count="exact").eq(
+        "processing_status", "done"
+    ).is_("lesson_data", "null").execute()
+    return {"status": "started", "pending": result.count or 0}
+
+
+async def _reprocess_lessons():
+    import json
+    from app.services import llm
+
+    # Get all done articles without lesson_data
+    result = db.supabase.table("articles").select(
+        "id, headline, raw_content"
+    ).eq("processing_status", "done").is_("lesson_data", "null").execute()
+
+    articles = result.data or []
+    print(f"Reprocessing {len(articles)} articles for lessons")
+
+    processed = 0
+    for article in articles:
+        article_id = article["id"]
+        raw_text = article.get("raw_content") or ""
+        headline = article.get("headline", "")
+
+        if not raw_text or len(raw_text) < 20:
+            continue
+
+        try:
+            lesson = await llm.generate_lesson(headline, raw_text)
+            if not lesson:
+                continue
+
+            await db.update_article(article_id, {
+                "ai_summary": lesson.summary,
+                "lesson_data": json.dumps(lesson.model_dump()),
+            })
+
+            # Check if quiz_attempts exist for this article's quiz
+            existing_quiz = await db.get_quiz_by_article(article_id)
+            if existing_quiz:
+                quiz_id = existing_quiz["id"]
+                attempts = db.supabase.table("quiz_attempts").select("id").eq("quiz_id", quiz_id).limit(1).execute()
+                if attempts.data:
+                    # Skip quiz recreation — users have attempted it
+                    processed += 1
+                    continue
+                # Delete old quiz questions and quiz
+                db.supabase.table("quiz_questions").delete().eq("quiz_id", quiz_id).execute()
+                db.supabase.table("quizzes").delete().eq("id", quiz_id).execute()
+
+            # Create new 6-question quiz
+            quiz_rows = [
+                {
+                    "question": q.prompt,
+                    "options": q.options,
+                    "correct_index": q.correct_index,
+                    "explanation": q.explanation,
+                    "question_type": q.type,
+                }
+                for q in lesson.quiz
+            ]
+            await db.insert_quiz(article_id, quiz_rows)
+
+            processed += 1
+            if processed % 5 == 0:
+                print(f"Reprocessed {processed}/{len(articles)} articles")
+        except Exception as e:
+            print(f"Reprocess error for article {article_id}: {e}")
+
+    print(f"Reprocessing complete: {processed}/{len(articles)} articles")
 
 
 @router.get("/{article_id}")

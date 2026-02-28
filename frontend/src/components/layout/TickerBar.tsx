@@ -2,7 +2,21 @@
 
 import { useTickerStream } from "@/hooks/useTickerStream";
 
-const DEFAULT_SYMBOLS = ["AAPL", "MSFT", "GOOGL", "AMZN", "TSLA", "NVDA", "META", "JPM"];
+const INDICES = [
+  { symbol: "SPY", label: "S&P 500" },
+  { symbol: "DIA", label: "Dow Jones" },
+  { symbol: "QQQ", label: "Nasdaq" },
+  { symbol: "IWM", label: "Russell 2000" },
+  { symbol: "EWJ", label: "Nikkei 225" },
+  { symbol: "EWG", label: "DAX" },
+  { symbol: "EWU", label: "FTSE 100" },
+  { symbol: "FXI", label: "Hang Seng" },
+];
+
+const SYMBOLS = INDICES.map((i) => i.symbol);
+const LABEL_MAP: Record<string, string> = Object.fromEntries(
+  INDICES.map((i) => [i.symbol, i.label])
+);
 
 function TriangleUp() {
   return (
@@ -21,8 +35,8 @@ function TriangleDown() {
 }
 
 export default function TickerBar() {
-  const tickers = useTickerStream(DEFAULT_SYMBOLS);
-  const entries = Object.values(tickers);
+  const tickers = useTickerStream(SYMBOLS);
+  const entries = INDICES.map((idx) => tickers[idx.symbol]).filter(Boolean);
 
   if (entries.length === 0) {
     return (
@@ -30,9 +44,9 @@ export default function TickerBar() {
         <div className="h-px bg-gradient-to-r from-transparent via-teal-400/30 to-transparent" />
         <div className="py-2">
           <div className="flex items-center gap-8 animate-marquee whitespace-nowrap">
-            {DEFAULT_SYMBOLS.concat(DEFAULT_SYMBOLS).map((s, i) => (
+            {INDICES.concat(INDICES).map((idx, i) => (
               <span key={i} className="text-xs text-gray-600">
-                {s} --
+                {idx.label} --
               </span>
             ))}
           </div>
@@ -50,7 +64,9 @@ export default function TickerBar() {
         <div className="flex items-center gap-8 animate-marquee whitespace-nowrap">
           {doubled.map((t, i) => (
             <span key={i} className="inline-flex items-center gap-1.5 text-xs">
-              <span className="font-semibold text-gray-300">{t.symbol}</span>
+              <span className="font-semibold text-gray-300">
+                {LABEL_MAP[t.symbol] || t.symbol}
+              </span>
               <span className="text-gray-400 font-mono">${t.price.toFixed(2)}</span>
               <span className={`inline-flex items-center gap-0.5 ${t.change >= 0 ? "text-emerald-400" : "text-red-400"}`}>
                 {t.change >= 0 ? <TriangleUp /> : <TriangleDown />}

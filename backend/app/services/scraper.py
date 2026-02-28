@@ -48,9 +48,16 @@ def _extract_article(html: str) -> dict | None:
 async def scrape_article(url: str) -> dict | None:
     """Scrape a single article URL and extract content."""
     try:
+        # Block internal/private network URLs to prevent SSRF
+        from urllib.parse import urlparse
+        parsed = urlparse(url)
+        if not parsed.hostname or parsed.hostname in ("localhost", "127.0.0.1", "0.0.0.0") or parsed.hostname.startswith("192.168.") or parsed.hostname.startswith("10.") or parsed.hostname.startswith("172."):
+            print(f"Scraper blocked internal URL: {url}")
+            return None
         async with httpx.AsyncClient(
             timeout=30,
             follow_redirects=True,
+            max_redirects=5,
             headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"},
         ) as client:
             response = await client.get(url)

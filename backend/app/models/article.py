@@ -22,6 +22,7 @@ class ArticleOut(ArticleBase):
     id: int
     ai_summary: str | None = None
     ai_tutorial: str | None = None
+    lesson_data: dict | None = None
     processing_status: str
     created_at: datetime
     sectors: list[str] = []

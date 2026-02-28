@@ -1,9 +1,14 @@
 from fastapi import APIRouter, Depends
+from pydantic import BaseModel, Field
 
 from app.db import supabase as db
 from app.dependencies import get_current_user
 
 router = APIRouter(prefix="/api/v1/favorites", tags=["favorites"])
+
+
+class FavoriteCreate(BaseModel):
+    sector_id: int = Field(ge=1, le=50)
 
 
 @router.get("")
@@ -14,14 +19,11 @@ async def get_favorites(user_id: str = Depends(get_current_user)):
 
 @router.post("")
 async def add_favorite(
-    body: dict,
+    body: FavoriteCreate,
     user_id: str = Depends(get_current_user),
 ):
-    sector_id = body.get("sector_id")
-    if not sector_id:
-        return {"success": False, "error": {"code": "MISSING_FIELD", "message": "sector_id required"}}
-    await db.add_favorite(user_id, sector_id)
-    return {"success": True, "data": {"sector_id": sector_id, "gauge_score": 50}}
+    await db.add_favorite(user_id, body.sector_id)
+    return {"success": True, "data": {"sector_id": body.sector_id, "gauge_score": 50}}
 
 
 @router.delete("/{sector_id}")
