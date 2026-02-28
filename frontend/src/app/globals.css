@@ -82,6 +82,18 @@ body {
   box-shadow: 0 0 12px rgba(45, 212, 191, 0.1), 0 0 24px rgba(45, 212, 191, 0.04);
 }
 
+.glow-gold {
+  box-shadow: 0 0 20px rgba(251, 191, 36, 0.25), 0 0 40px rgba(251, 191, 36, 0.08);
+}
+
+.glow-silver {
+  box-shadow: 0 0 16px rgba(148, 163, 184, 0.2), 0 0 32px rgba(148, 163, 184, 0.06);
+}
+
+.glow-bronze {
+  box-shadow: 0 0 16px rgba(217, 119, 6, 0.2), 0 0 32px rgba(217, 119, 6, 0.06);
+}
+
 /* Interactive cursor */
 button, a, [role="button"] {
   cursor: pointer;
