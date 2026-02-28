@@ -9,30 +9,48 @@ from app.services.finnhub_ws import finnhub_proxy
 router = APIRouter(prefix="/api/v1/market", tags=["market"])
 
 YAHOO_HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "Accept": "application/json,text/plain,*/*",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Accept-Encoding": "gzip, deflate, br",
+    "Origin": "https://finance.yahoo.com",
+    "Referer": "https://finance.yahoo.com/",
 }
 
 
 async def fetch_yahoo_quotes(symbols: list[str]) -> list[dict]:
     """Fetch real index quotes from Yahoo Finance (supports ^GSPC, ^DJI, etc.)."""
-    joined = ",".join(symbols)
-    url = f"https://query1.finance.yahoo.com/v7/finance/quote?symbols={joined}"
-    try:
-        async with httpx.AsyncClient(timeout=10, headers=YAHOO_HEADERS) as client:
-            res = await client.get(url)
-            res.raise_for_status()
-            data = res.json()
-        results = []
-        for q in data.get("quoteResponse", {}).get("result", []):
-            results.append({
-                "ticker": q.get("symbol"),
-                "price": q.get("regularMarketPrice"),
-                "price_change_pct": q.get("regularMarketChangePercent"),
-            })
-        return results
-    except Exception as e:
-        print(f"Yahoo Finance quotes error: {e}")
-        return []
+    results = []
+    async with httpx.AsyncClient(timeout=15, headers=YAHOO_HEADERS, follow_redirects=True) as client:
+        for symbol in symbols:
+            try:
+                res = await client.get(
+                    f"https://query1.finance.yahoo.com/v8/finance/chart/{symbol}",
+                    params={"interval": "1d", "range": "1d"},
+                )
+                if res.status_code != 200:
+                    print(f"Yahoo Finance {symbol}: HTTP {res.status_code}")
+                    continue
+                data = res.json()
+                result_list = (data.get("chart", {}).get("result") or [])
+                if not result_list:
+                    print(f"Yahoo Finance {symbol}: empty result")
+                    continue
+                meta = result_list[0].get("meta", {})
+                price = meta.get("regularMarketPrice")
+                if price is not None:
+                    prev_close = meta.get("chartPreviousClose") or meta.get("previousClose")
+                    pct = ((price - prev_close) / prev_close * 100) if prev_close else None
+                    results.append({
+                        "ticker": symbol,
+                        "price": price,
+                        "price_change_pct": round(pct, 4) if pct is not None else None,
+                    })
+                else:
+                    print(f"Yahoo Finance {symbol}: no price in meta")
+            except Exception as e:
+                print(f"Yahoo Finance error ({symbol}): {e}")
+    return results
 
 
 @router.get("/quotes")
