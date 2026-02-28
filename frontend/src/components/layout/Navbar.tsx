@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useAuth } from "@/hooks/useAuth";
 import NavDropdown from "./NavDropdown";
 import NotificationBell from "@/components/ui/NotificationBell";
+import { AnimatePresence, DropdownMotion } from "@/components/shared/MotionWrappers";
 
 const WORLD_SECTORS = [
   { name: "Asia", slug: "asia" },
@@ -32,11 +33,11 @@ export default function Navbar() {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   return (
-    <nav className="sticky top-0 z-50 bg-gray-950/80 backdrop-blur-md border-b border-gray-800">
+    <nav className="sticky top-0 z-50 glass-strong">
       <div className="max-w-7xl mx-auto px-4 h-14 flex items-center justify-between">
         <div className="flex items-center gap-8">
           <Link href="/" className="text-xl font-bold text-white tracking-tight">
-            Fina<span className="text-teal-400">Meter</span>
+            Fina<span className="text-teal-400" style={{ textShadow: "0 0 12px rgba(45, 212, 191, 0.4)" }}>Meter</span>
           </Link>
 
           <div className="hidden md:flex items-center gap-6">
@@ -102,81 +103,83 @@ export default function Navbar() {
       </div>
 
       {/* Mobile menu */}
-      {mobileOpen && (
-        <div className="md:hidden bg-gray-900 border-t border-gray-800 px-4 py-4 space-y-3">
-          <div>
-            <p className="text-xs text-gray-500 uppercase tracking-wider mb-2">World</p>
-            <div className="grid grid-cols-2 gap-1">
-              {WORLD_SECTORS.map((s) => (
-                <Link
-                  key={s.slug}
-                  href={`/world/${s.slug}`}
-                  onClick={() => setMobileOpen(false)}
-                  className="text-sm text-gray-300 hover:text-teal-400 py-1"
-                >
-                  {s.name}
-                </Link>
-              ))}
+      <AnimatePresence>
+        {mobileOpen && (
+          <DropdownMotion className="md:hidden glass border-t border-white/5 px-4 py-4 space-y-3">
+            <div>
+              <p className="text-xs text-gray-500 uppercase tracking-wider mb-2">World</p>
+              <div className="grid grid-cols-2 gap-1">
+                {WORLD_SECTORS.map((s) => (
+                  <Link
+                    key={s.slug}
+                    href={`/world/${s.slug}`}
+                    onClick={() => setMobileOpen(false)}
+                    className="text-sm text-gray-300 hover:text-teal-400 py-1"
+                  >
+                    {s.name}
+                  </Link>
+                ))}
+              </div>
             </div>
-          </div>
-          <div>
-            <p className="text-xs text-gray-500 uppercase tracking-wider mb-2">Markets</p>
-            <div className="grid grid-cols-2 gap-1">
-              {MARKET_SECTORS.map((s) => (
-                <Link
-                  key={s.slug}
-                  href={`/markets/${s.slug}`}
-                  onClick={() => setMobileOpen(false)}
-                  className="text-sm text-gray-300 hover:text-teal-400 py-1"
-                >
-                  {s.name}
-                </Link>
-              ))}
+            <div>
+              <p className="text-xs text-gray-500 uppercase tracking-wider mb-2">Markets</p>
+              <div className="grid grid-cols-2 gap-1">
+                {MARKET_SECTORS.map((s) => (
+                  <Link
+                    key={s.slug}
+                    href={`/markets/${s.slug}`}
+                    onClick={() => setMobileOpen(false)}
+                    className="text-sm text-gray-300 hover:text-teal-400 py-1"
+                  >
+                    {s.name}
+                  </Link>
+                ))}
+              </div>
             </div>
-          </div>
-          <div className="border-t border-gray-800 pt-3">
-            <Link
-              href="/feed"
-              onClick={() => setMobileOpen(false)}
-              className="block text-sm text-gray-300 hover:text-teal-400 py-1"
-            >
-              Feed
-            </Link>
-            <Link
-              href="/leaderboard"
-              onClick={() => setMobileOpen(false)}
-              className="block text-sm text-gray-300 hover:text-teal-400 py-1"
-            >
-              Leaderboard
-            </Link>
-            {user ? (
-              <>
-                <Link
-                  href="/profile"
-                  onClick={() => setMobileOpen(false)}
-                  className="block text-sm text-gray-300 hover:text-teal-400 py-1"
-                >
-                  Profile
-                </Link>
-                <button
-                  onClick={() => { signOut(); setMobileOpen(false); }}
-                  className="block text-sm text-gray-500 hover:text-gray-300 py-1"
-                >
-                  Sign out
-                </button>
-              </>
-            ) : (
+            <div className="border-t border-gray-800 pt-3">
               <Link
-                href="/login"
+                href="/feed"
                 onClick={() => setMobileOpen(false)}
-                className="block text-sm text-teal-400 py-1"
+                className="block text-sm text-gray-300 hover:text-teal-400 py-1"
               >
-                Sign in
+                Feed
               </Link>
-            )}
-          </div>
-        </div>
-      )}
+              <Link
+                href="/leaderboard"
+                onClick={() => setMobileOpen(false)}
+                className="block text-sm text-gray-300 hover:text-teal-400 py-1"
+              >
+                Leaderboard
+              </Link>
+              {user ? (
+                <>
+                  <Link
+                    href="/profile"
+                    onClick={() => setMobileOpen(false)}
+                    className="block text-sm text-gray-300 hover:text-teal-400 py-1"
+                  >
+                    Profile
+                  </Link>
+                  <button
+                    onClick={() => { signOut(); setMobileOpen(false); }}
+                    className="block text-sm text-gray-500 hover:text-gray-300 py-1"
+                  >
+                    Sign out
+                  </button>
+                </>
+              ) : (
+                <Link
+                  href="/login"
+                  onClick={() => setMobileOpen(false)}
+                  className="block text-sm text-teal-400 py-1"
+                >
+                  Sign in
+                </Link>
+              )}
+            </div>
+          </DropdownMotion>
+        )}
+      </AnimatePresence>
     </nav>
   );
 }

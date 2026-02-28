@@ -6,14 +6,55 @@ import feedparser
 import httpx
 
 RSS_SOURCES = [
+    # General finance & markets
     {"name": "Reuters Business", "url": "https://www.reutersagency.com/feed/?best-topics=business-finance"},
     {"name": "CNBC Top News", "url": "https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=100003114"},
     {"name": "CNBC World", "url": "https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=100727362"},
+    {"name": "CNBC Finance", "url": "https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=10000664"},
     {"name": "BBC Business", "url": "https://feeds.bbci.co.uk/news/business/rss.xml"},
     {"name": "AP News Business", "url": "https://rsshub.app/apnews/topics/business"},
     {"name": "The Guardian Business", "url": "https://www.theguardian.com/uk/business/rss"},
     {"name": "Investing.com News", "url": "https://www.investing.com/rss/news.rss"},
     {"name": "Investing.com Analysis", "url": "https://www.investing.com/rss/news_301.rss"},
+
+    # Stocks & markets
+    {"name": "Yahoo Finance", "url": "https://finance.yahoo.com/news/rssurl"},
+    {"name": "MarketWatch", "url": "https://feeds.marketwatch.com/marketwatch/topstories/"},
+    {"name": "Motley Fool", "url": "https://www.fool.com/feeds/index.aspx"},
+    {"name": "Seeking Alpha", "url": "https://seekingalpha.com/market_currents.xml"},
+
+    # Crypto
+    {"name": "CoinDesk", "url": "https://www.coindesk.com/arc/outboundfeeds/rss/"},
+    {"name": "Cointelegraph", "url": "https://cointelegraph.com/rss"},
+    {"name": "The Block", "url": "https://www.theblock.co/rss.xml"},
+
+    # World / regions
+    {"name": "BBC Asia", "url": "https://feeds.bbci.co.uk/news/world/asia/rss.xml"},
+    {"name": "BBC Europe", "url": "https://feeds.bbci.co.uk/news/world/europe/rss.xml"},
+    {"name": "BBC Americas", "url": "https://feeds.bbci.co.uk/news/world/us_and_canada/rss.xml"},
+    {"name": "Al Jazeera", "url": "https://www.aljazeera.com/xml/rss/all.xml"},
+    {"name": "Nikkei Asia", "url": "https://asia.nikkei.com/rss"},
+    {"name": "South China Morning Post", "url": "https://www.scmp.com/rss/91/feed"},
+
+    # Forex & currency
+    {"name": "ForexLive", "url": "https://www.forexlive.com/feed/"},
+    {"name": "DailyFX", "url": "https://www.dailyfx.com/feeds/market-news"},
+
+    # Bonds & fixed income
+    {"name": "Investing.com Bonds", "url": "https://www.investing.com/rss/news_95.rss"},
+
+    # ETFs
+    {"name": "ETF.com", "url": "https://www.etf.com/feeds/all.xml"},
+    {"name": "ETF Daily News", "url": "https://etfdailynews.com/feed/"},
+    {"name": "Investing.com ETFs", "url": "https://www.investing.com/rss/news_293.rss"},
+
+    # Options & derivatives
+    {"name": "NASDAQ Options Alerts", "url": "https://www.nasdaqtrader.com/rss.aspx?feed=optionstraderalerts"},
+    {"name": "Investing.com Commodities", "url": "https://www.investing.com/rss/news_29.rss"},
+
+    # Indices
+    {"name": "Investing.com Indices", "url": "https://www.investing.com/rss/news_25.rss"},
+    {"name": "CNBC Market Insider", "url": "https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=20910258"},
 ]
 
 MAX_ARTICLES_PER_FEED = 15

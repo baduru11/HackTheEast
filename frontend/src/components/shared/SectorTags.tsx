@@ -24,7 +24,7 @@ export default function SectorTags({
       {shown.map((s) => (
         <span
           key={s.sector_id}
-          className={`text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded border ${
+          className={`text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-md border ${
             CATEGORY_COLORS[s.sectors.category] || FALLBACK
           }`}
         >

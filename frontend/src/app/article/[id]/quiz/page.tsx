@@ -2,6 +2,7 @@
 
 import { use, useEffect, useState } from "react";
 import Link from "next/link";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { useAuth } from "@/hooks/useAuth";
 import type { Quiz, QuizQuestion, QuestionFeedback } from "@/types";
 
@@ -13,6 +14,7 @@ export default function QuizPage({ params }: { params: Promise<{ id: string }> }
   const [answers, setAnswers] = useState<number[]>([]);
   const [selected, setSelected] = useState<number | null>(null);
   const [submitted, setSubmitted] = useState(false);
+  const [direction, setDirection] = useState(1);
   const [result, setResult] = useState<{
     score: number;
     total_questions: number;
@@ -22,6 +24,7 @@ export default function QuizPage({ params }: { params: Promise<{ id: string }> }
   } | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const reduced = useReducedMotion();
 
   useEffect(() => {
     fetch(`/api/v1/articles/${id}/quiz`)
@@ -36,9 +39,9 @@ export default function QuizPage({ params }: { params: Promise<{ id: string }> }
   if (authLoading || loading) {
     return (
       <div className="max-w-2xl mx-auto px-4 py-12">
-        <div className="animate-pulse space-y-4">
-          <div className="h-6 bg-gray-900 rounded w-1/3" />
-          <div className="h-32 bg-gray-900 rounded" />
+        <div className="space-y-4">
+          <div className="h-6 skeleton-shimmer rounded w-1/3" />
+          <div className="h-32 skeleton-shimmer rounded" />
         </div>
       </div>
     );
@@ -80,6 +83,7 @@ export default function QuizPage({ params }: { params: Promise<{ id: string }> }
     const newAnswers = [...answers, selected];
     setAnswers(newAnswers);
     setSelected(null);
+    setDirection(1);
 
     if (current < total - 1) {
       setCurrent(current + 1);
@@ -114,9 +118,23 @@ export default function QuizPage({ params }: { params: Promise<{ id: string }> }
     return (
       <div className="max-w-2xl mx-auto px-4 py-8">
         <div className="text-center mb-8">
-          <div className="text-5xl font-bold text-white mb-2">
-            {result.score}/{result.total_questions}
-          </div>
+          {reduced ? (
+            <div>
+              <div className="text-5xl font-bold text-white mb-2">
+                {result.score}/{result.total_questions}
+              </div>
+            </div>
+          ) : (
+            <motion.div
+              initial={{ scale: 0.5, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ type: "spring" as const, stiffness: 200, damping: 15 }}
+            >
+              <div className="text-5xl font-bold text-white mb-2">
+                {result.score}/{result.total_questions}
+              </div>
+            </motion.div>
+          )}
           <p className="text-gray-400">
             +{result.xp_earned} XP · +{result.gauge_change} Gauge
           </p>
@@ -133,12 +151,20 @@ export default function QuizPage({ params }: { params: Promise<{ id: string }> }
               }`}
             >
               <div className="flex items-start gap-2 mb-2">
-                <span className={fb.is_correct ? "text-green-400" : "text-red-400"}>
-                  {fb.is_correct ? "✓" : "✗"}
+                <span className={`flex-shrink-0 ${fb.is_correct ? "text-green-400" : "text-red-400"}`}>
+                  {fb.is_correct ? (
+                    <svg className="w-5 h-5" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                    </svg>
+                  ) : (
+                    <svg className="w-5 h-5" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                    </svg>
+                  )}
                 </span>
                 <p className="text-sm text-white font-medium">{fb.question_text}</p>
               </div>
-              <p className="text-xs text-gray-400 ml-6">{fb.explanation}</p>
+              <p className="text-xs text-gray-400 ml-7">{fb.explanation}</p>
             </div>
           ))}
         </div>
@@ -169,6 +195,12 @@ export default function QuizPage({ params }: { params: Promise<{ id: string }> }
     );
   }
 
+  const questionVariants = {
+    enter: (dir: number) => ({ x: dir > 0 ? 80 : -80, opacity: 0 }),
+    center: { x: 0, opacity: 1 },
+    exit: (dir: number) => ({ x: dir > 0 ? -80 : 80, opacity: 0 }),
+  };
+
   return (
     <div className="max-w-2xl mx-auto px-4 py-8">
       {/* Progress */}
@@ -177,36 +209,74 @@ export default function QuizPage({ params }: { params: Promise<{ id: string }> }
           <span>Question {current + 1} of {total}</span>
           <span>{Math.round(((current) / total) * 100)}%</span>
         </div>
-        <div className="h-1.5 bg-gray-800 rounded-full">
+        <div className="h-1.5 bg-gray-800 rounded-full overflow-hidden">
           <div
-            className="h-full bg-teal-400 rounded-full transition-all"
-            style={{ width: `${(current / total) * 100}%` }}
+            className="h-full rounded-full transition-all duration-500"
+            style={{
+              width: `${(current / total) * 100}%`,
+              background: "linear-gradient(90deg, #14b8a6, #2dd4bf)",
+              boxShadow: "0 0 8px rgba(45, 212, 191, 0.4)",
+            }}
           />
         </div>
       </div>
 
       {/* Question */}
-      <h2 className="text-lg font-semibold text-white mb-6">{question.question_text}</h2>
-
-      {/* Options */}
-      <div className="space-y-3 mb-8">
-        {question.options.map((option, idx) => (
-          <button
-            key={idx}
-            onClick={() => handleSelect(idx)}
-            className={`w-full text-left p-4 rounded-lg border transition-all ${
-              selected === idx
-                ? "border-teal-400 bg-teal-400/10 text-white"
-                : "border-gray-800 bg-gray-900 text-gray-300 hover:border-gray-700"
-            }`}
+      <AnimatePresence mode="wait" custom={direction}>
+        {reduced ? (
+          <div key={current}>
+            <h2 className="text-lg font-semibold text-white mb-6">{question.question_text}</h2>
+            <div className="space-y-3 mb-8">
+              {question.options.map((option, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => handleSelect(idx)}
+                  className={`w-full text-left p-4 rounded-lg border transition-all ${
+                    selected === idx
+                      ? "border-teal-400 bg-teal-400/10 text-white"
+                      : "border-gray-800 bg-gray-900 text-gray-300 hover:border-gray-700"
+                  }`}
+                >
+                  <span className="text-sm font-medium mr-3 text-gray-500">
+                    {String.fromCharCode(65 + idx)}.
+                  </span>
+                  {option}
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <motion.div
+            key={current}
+            custom={direction}
+            variants={questionVariants}
+            initial="enter"
+            animate="center"
+            exit="exit"
+            transition={{ duration: 0.25, ease: "easeInOut" }}
           >
-            <span className="text-sm font-medium mr-3 text-gray-500">
-              {String.fromCharCode(65 + idx)}.
-            </span>
-            {option}
-          </button>
-        ))}
-      </div>
+            <h2 className="text-lg font-semibold text-white mb-6">{question.question_text}</h2>
+            <div className="space-y-3 mb-8">
+              {question.options.map((option, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => handleSelect(idx)}
+                  className={`w-full text-left p-4 rounded-lg border transition-all ${
+                    selected === idx
+                      ? "border-teal-400 bg-teal-400/10 text-white"
+                      : "border-gray-800 bg-gray-900 text-gray-300 hover:border-gray-700"
+                  }`}
+                >
+                  <span className="text-sm font-medium mr-3 text-gray-500">
+                    {String.fromCharCode(65 + idx)}.
+                  </span>
+                  {option}
+                </button>
+              ))}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Next/Submit */}
       <button

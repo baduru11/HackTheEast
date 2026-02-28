@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { Article } from "@/types";
 import SectorTags from "@/components/shared/SectorTags";
+import ArticleImage from "@/components/shared/ArticleImage";
 
 function timeAgo(date: string | null): string {
   if (!date) return "";
@@ -15,15 +16,15 @@ export default function ArticleCard({ article }: { article: Article }) {
   return (
     <Link
       href={`/article/${article.id}`}
-      className="flex gap-4 p-4 rounded-lg bg-gray-900 border border-gray-800 hover:border-gray-700 transition-colors group"
+      className="flex gap-4 p-4 rounded-lg bg-gray-900 border border-gray-800 transition-all duration-300 hover:border-teal-400/20 hover:bg-gray-900/80 hover:glow-teal-sm hover:scale-[1.01] group"
     >
-      {article.image_url && (
-        <img
+      <div className="w-28 h-20 rounded-md overflow-hidden flex-shrink-0">
+        <ArticleImage
           src={article.image_url}
           alt=""
-          className="w-28 h-20 rounded-md object-cover flex-shrink-0"
+          className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
         />
-      )}
+      </div>
       <div className="flex-1 min-w-0">
         <h3 className="text-sm font-semibold text-white leading-snug line-clamp-2 group-hover:text-teal-400 transition-colors">
           {article.headline}

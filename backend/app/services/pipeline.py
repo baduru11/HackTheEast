@@ -89,9 +89,8 @@ async def ingest_finnhub():
     return saved_count
 
 
-async def ingest_gnews():
-    """Full GNews ingestion cycle: fetch all regions, deduplicate, save."""
-    articles = await gnews.fetch_all_regions()
+async def _ingest_gnews_articles(articles: list[dict], label: str) -> int:
+    """Shared GNews ingestion logic for both regions and markets."""
     saved_count = 0
 
     for article in articles:
@@ -110,7 +109,7 @@ async def ingest_gnews():
             "processing_status": "pending",
         })
 
-        # Map region to sector
+        # Map region/market slug to sector
         if region:
             sector = await db.get_sector_by_slug(region)
             if sector:
@@ -118,8 +117,26 @@ async def ingest_gnews():
 
         saved_count += 1
 
-    print(f"GNews ingestion: {saved_count} new articles saved")
+    print(f"GNews {label}: {saved_count} new articles saved")
     return saved_count
+
+
+async def ingest_gnews_regions():
+    """GNews ingestion: world/region queries (7 calls)."""
+    articles = await gnews.fetch_all_regions()
+    return await _ingest_gnews_articles(articles, "regions")
+
+
+async def ingest_gnews_markets():
+    """GNews ingestion: market sector queries (7 calls)."""
+    articles = await gnews.fetch_all_markets()
+    return await _ingest_gnews_articles(articles, "markets")
+
+
+async def ingest_gnews():
+    """Full GNews ingestion: both regions and markets."""
+    await ingest_gnews_regions()
+    await ingest_gnews_markets()
 
 
 async def ingest_rss():

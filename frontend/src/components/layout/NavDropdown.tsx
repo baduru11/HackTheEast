@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
+import { AnimatePresence, DropdownMotion } from "@/components/shared/MotionWrappers";
 
 interface NavDropdownProps {
   label: string;
@@ -40,20 +41,22 @@ export default function NavDropdown({ label, items, basePath }: NavDropdownProps
         </svg>
       </button>
 
-      {open && (
-        <div className="absolute top-full left-0 mt-2 w-44 bg-gray-900 border border-gray-800 rounded-lg shadow-xl py-1 z-50">
-          {items.map((item) => (
-            <Link
-              key={item.slug}
-              href={`${basePath}/${item.slug}`}
-              onClick={() => setOpen(false)}
-              className="block px-4 py-2 text-sm text-gray-300 hover:text-white hover:bg-gray-800 transition-colors"
-            >
-              {item.name}
-            </Link>
-          ))}
-        </div>
-      )}
+      <AnimatePresence>
+        {open && (
+          <DropdownMotion className="absolute top-full left-0 mt-2 w-44 glass rounded-xl shadow-xl py-1 z-50">
+            {items.map((item) => (
+              <Link
+                key={item.slug}
+                href={`${basePath}/${item.slug}`}
+                onClick={() => setOpen(false)}
+                className="block px-4 py-2 text-sm text-gray-300 hover:text-white hover:bg-white/5 rounded-lg mx-1 transition-colors"
+              >
+                {item.name}
+              </Link>
+            ))}
+          </DropdownMotion>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

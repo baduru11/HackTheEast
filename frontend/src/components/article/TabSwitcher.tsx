@@ -13,11 +13,12 @@ export default function TabSwitcher({ tabs, active, onChange }: TabSwitcherProps
         <button
           key={tab}
           onClick={() => onChange(tab)}
-          className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px ${
+          className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px cursor-pointer ${
             active === tab
               ? "text-teal-400 border-teal-400"
               : "text-gray-400 border-transparent hover:text-gray-300"
           }`}
+          style={active === tab ? { textShadow: "0 0 8px rgba(45, 212, 191, 0.3)" } : undefined}
         >
           {tab}
         </button>

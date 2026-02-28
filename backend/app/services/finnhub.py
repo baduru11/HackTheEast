@@ -16,6 +16,22 @@ NEWS_CATEGORIES = ["general", "forex", "crypto", "merger"]
 
 PAYWALLED_SOURCES = {"MarketWatch", "SeekingAlpha", "Bloomberg", "Barron's", "WSJ", "Financial Times"}
 
+# Sources where Finnhub proxies/hides the real URL (returns finnhub.io links)
+BROKEN_URL_SOURCES = {"Yahoo", "Motley Fool", "Business Insider", "Forbes", "ChartMill", "Benzinga"}
+
+BLOCKED_SOURCES = PAYWALLED_SOURCES | BROKEN_URL_SOURCES
+
+BROKEN_IMAGE_PATTERNS = ["s.yimg.com", "media.zenfs.com", "static.finnhub.io", "static2.finnhub.io"]
+
+
+def clean_image_url(url: str | None) -> str | None:
+    """Return None for known-broken image URLs."""
+    if not url or not url.strip():
+        return None
+    if any(p in url for p in BROKEN_IMAGE_PATTERNS):
+        return None
+    return url
+
 
 async def fetch_general_news() -> list[dict]:
     """Fetch general market news from all categories."""
@@ -24,7 +40,10 @@ async def fetch_general_news() -> list[dict]:
         try:
             news = client.general_news(category, min_id=0)
             for item in news:
-                if item.get("source", "") in PAYWALLED_SOURCES:
+                if item.get("source", "") in BLOCKED_SOURCES:
+                    continue
+                url = item.get("url", "")
+                if not url or "finnhub.io" in url:
                     continue
                 articles.append({
                     "finnhub_id": str(item.get("id")),
@@ -32,7 +51,7 @@ async def fetch_general_news() -> list[dict]:
                     "snippet": item.get("summary", ""),
                     "source_name": item.get("source", ""),
                     "original_url": item.get("url", ""),
-                    "image_url": item.get("image", ""),
+                    "image_url": clean_image_url(item.get("image")),
                     "published_at": datetime.fromtimestamp(item.get("datetime", 0)).isoformat(),
                     "category": category,
                 })
@@ -47,20 +66,26 @@ async def fetch_company_news(ticker: str) -> list[dict]:
     week_ago = today - timedelta(days=7)
     try:
         news = client.company_news(ticker, _from=str(week_ago), to=str(today))
-        return [
-            {
+        results = []
+        for item in news[:10]:
+            if item.get("source", "") in BLOCKED_SOURCES:
+                continue
+            url = item.get("url", "")
+            if not url or "finnhub.io" in url:
+                continue
+            results.append({
                 "finnhub_id": str(item.get("id")),
                 "headline": item.get("headline", ""),
                 "snippet": item.get("summary", ""),
                 "source_name": item.get("source", ""),
-                "original_url": item.get("url", ""),
-                "image_url": item.get("image", ""),
+                "original_url": url,
+                "image_url": clean_image_url(item.get("image")),
                 "published_at": datetime.fromtimestamp(item.get("datetime", 0)).isoformat(),
                 "tickers": [ticker],
-            }
-            for item in news[:5]
-            if item.get("source", "") not in PAYWALLED_SOURCES
-        ]
+            })
+            if len(results) >= 5:
+                break
+        return results
     except Exception as e:
         print(f"Finnhub company_news error ({ticker}): {e}")
         return []

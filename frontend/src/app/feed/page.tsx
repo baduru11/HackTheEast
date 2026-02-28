@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useAuth } from "@/hooks/useAuth";
 import { apiFetch } from "@/lib/api";
 import ArticleCard from "@/components/feed/ArticleCard";
+import { StaggerList, StaggerItem } from "@/components/shared/MotionWrappers";
 import type { Article } from "@/types";
 
 export default function FeedPage() {
@@ -42,7 +43,7 @@ export default function FeedPage() {
       <div className="max-w-3xl mx-auto px-4 py-12">
         <div className="space-y-3">
           {[...Array(5)].map((_, i) => (
-            <div key={i} className="h-24 bg-gray-900 rounded-lg animate-pulse" />
+            <div key={i} className="h-24 skeleton-shimmer rounded-lg" />
           ))}
         </div>
       </div>
@@ -52,6 +53,9 @@ export default function FeedPage() {
   if (!user) {
     return (
       <div className="max-w-3xl mx-auto px-4 py-24 text-center">
+        <svg className="w-16 h-16 text-gray-700 mx-auto mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 7.5h1.5m-1.5 3h1.5m-7.5 3h7.5m-7.5 3h7.5m3-9h3.375c.621 0 1.125.504 1.125 1.125V18a2.25 2.25 0 0 1-2.25 2.25M16.5 7.5V18a2.25 2.25 0 0 0 2.25 2.25M16.5 7.5V4.875c0-.621-.504-1.125-1.125-1.125H4.125C3.504 3.75 3 4.254 3 4.875V18a2.25 2.25 0 0 0 2.25 2.25h13.5M6 7.5h3v3H6v-3Z" />
+        </svg>
         <h2 className="text-2xl font-bold text-white mb-2">Your Feed</h2>
         <p className="text-gray-400 mb-4">Sign in to see news from your favorite sectors</p>
         <Link
@@ -70,7 +74,7 @@ export default function FeedPage() {
         <h1 className="text-2xl font-bold text-white mb-6">My Feed</h1>
         <div className="space-y-3">
           {[...Array(5)].map((_, i) => (
-            <div key={i} className="h-24 bg-gray-900 rounded-lg animate-pulse" />
+            <div key={i} className="h-24 skeleton-shimmer rounded-lg" />
           ))}
         </div>
       </div>
@@ -80,6 +84,9 @@ export default function FeedPage() {
   if (articles.length === 0) {
     return (
       <div className="max-w-3xl mx-auto px-4 py-24 text-center">
+        <svg className="w-16 h-16 text-gray-700 mx-auto mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 7.5h1.5m-1.5 3h1.5m-7.5 3h7.5m-7.5 3h7.5m3-9h3.375c.621 0 1.125.504 1.125 1.125V18a2.25 2.25 0 0 1-2.25 2.25M16.5 7.5V18a2.25 2.25 0 0 0 2.25 2.25M16.5 7.5V4.875c0-.621-.504-1.125-1.125-1.125H4.125C3.504 3.75 3 4.254 3 4.875V18a2.25 2.25 0 0 0 2.25 2.25h13.5M6 7.5h3v3H6v-3Z" />
+        </svg>
         <h2 className="text-2xl font-bold text-white mb-2">My Feed</h2>
         <p className="text-gray-400 mb-4">
           No articles yet. Pick some sectors to start your personalized feed.
@@ -97,9 +104,11 @@ export default function FeedPage() {
   return (
     <div className="max-w-3xl mx-auto px-4 py-8">
       <h1 className="text-2xl font-bold text-white mb-6">My Feed</h1>
-      <div className="space-y-3">
+      <StaggerList className="space-y-3">
         {articles.map((article) => (
-          <ArticleCard key={article.id} article={article} />
+          <StaggerItem key={article.id}>
+            <ArticleCard article={article} />
+          </StaggerItem>
         ))}
         {articles.length < total && (
           <button
@@ -113,7 +122,7 @@ export default function FeedPage() {
             Load more
           </button>
         )}
-      </div>
+      </StaggerList>
     </div>
   );
 }

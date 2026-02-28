@@ -1,10 +1,10 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 
-from app.services.pipeline import ingest_finnhub, ingest_gnews, ingest_rss, process_pending_articles, recover_stuck_articles
+from app.services.pipeline import ingest_finnhub, ingest_gnews_regions, ingest_gnews_markets, ingest_rss, process_pending_articles, recover_stuck_articles
 from app.services.gauge import process_gauge_decay
 from app.services.xp import award_passive_xp
 from app.db.supabase import refresh_leaderboards
@@ -30,7 +30,7 @@ scheduler = AsyncIOScheduler()
 async def process_pending_job():
     """Proper async wrapper for processing pending articles."""
     await recover_stuck_articles()
-    await process_pending_articles(batch_size=15)
+    await process_pending_articles(batch_size=5)
 
 
 async def rss_ingest_job():
@@ -69,12 +69,21 @@ def setup_scheduler():
         replace_existing=True,
     )
 
-    # GNews every 2 hours
+    # GNews alternates: regions on even hours, markets on odd hours
+    # 7 calls × 6 cycles each = 42 + 42 = 84 calls/day (under 100)
     scheduler.add_job(
-        ingest_gnews,
-        IntervalTrigger(hours=2),
-        id="gnews_poll",
-        name="GNews international news poll",
+        ingest_gnews_regions,
+        IntervalTrigger(hours=4),
+        id="gnews_regions",
+        name="GNews world/region news poll",
+        replace_existing=True,
+    )
+
+    scheduler.add_job(
+        ingest_gnews_markets,
+        IntervalTrigger(hours=4, start_date=datetime.utcnow().replace(minute=0, second=0) + timedelta(hours=2)),
+        id="gnews_markets",
+        name="GNews market sector news poll",
         replace_existing=True,
     )
 
