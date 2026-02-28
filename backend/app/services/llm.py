@@ -1,3 +1,5 @@
+import json
+
 import httpx
 
 from app.config import settings
@@ -196,3 +198,58 @@ Article body:
     except Exception as e:
         print(f"Lesson LLM error: {e}")
         return None
+
+
+async def generate_daily_quiz_questions(article_texts: list[str]) -> list[dict]:
+    combined = "\n\n---\n\n".join(article_texts)
+
+    prompt = f"""Based on the following financial news articles, generate exactly 5 multiple-choice quiz questions.
+
+Articles:
+{combined}
+
+Return a JSON array of 5 objects, each with:
+- "question_text": the question string
+- "options": array of exactly 4 answer strings
+- "correct_index": integer 0-3 indicating correct answer
+- "explanation": brief explanation of why the answer is correct
+
+Focus on testing understanding of:
+- Key facts from the articles
+- Financial concepts mentioned
+- Market implications
+- Cause and effect relationships
+
+Return ONLY the JSON array, no other text."""
+
+    headers = {
+        "Authorization": f"Bearer {settings.openrouter_api_key}",
+        "Content-Type": "application/json",
+    }
+
+    payload = {
+        "model": "minimax/minimax-m2.5",
+        "messages": [
+            {"role": "system", "content": "You are a financial education quiz generator. Return only valid JSON."},
+            {"role": "user", "content": prompt},
+        ],
+        "temperature": 0.4,
+        "response_format": {"type": "json_object"},
+    }
+
+    async with httpx.AsyncClient(timeout=180) as client:
+        resp = await client.post(OPENROUTER_URL, headers=headers, json=payload)
+        resp.raise_for_status()
+
+    content = resp.json()["choices"][0]["message"]["content"]
+    parsed = json.loads(content)
+
+    # Handle both {"questions": [...]} and direct array
+    if isinstance(parsed, dict) and "questions" in parsed:
+        questions = parsed["questions"]
+    elif isinstance(parsed, list):
+        questions = parsed
+    else:
+        raise ValueError("Unexpected LLM response format")
+
+    return questions[:5]
