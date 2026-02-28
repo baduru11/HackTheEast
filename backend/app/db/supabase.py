@@ -237,19 +237,40 @@ async def mark_all_notifications_read(user_id: str):
 
 # --- Leaderboard ---
 
-async def get_global_leaderboard():
-    result = supabase.table("leaderboard_global").select("*").order("rank").execute()
+async def get_global_leaderboard(period: str = "all_time") -> list[dict]:
+    if period == "weekly":
+        result = supabase.table("leaderboard_weekly").select("*").order("rank").limit(20).execute()
+    elif period == "monthly":
+        result = supabase.table("leaderboard_monthly").select("*").order("rank").limit(20).execute()
+    else:
+        result = supabase.table("leaderboard_global").select("*").order("rank").limit(20).execute()
     return result.data
 
 
-async def get_sector_leaderboard(sector_id: int):
-    result = supabase.table("leaderboard_sector").select("*").eq("sector_id", sector_id).order("rank").execute()
+async def get_sector_leaderboard(sector_id: int, period: str = "all_time") -> list[dict]:
+    result = supabase.table("leaderboard_sector").select("*").eq("sector_id", sector_id).order("rank").limit(20).execute()
     return result.data
 
 
 async def get_user_rank(user_id: str):
     result = supabase.table("leaderboard_global").select("*").eq("user_id", user_id).execute()
     return result.data[0] if result.data else None
+
+
+async def get_friends_leaderboard(user_id: str, friend_ids: list[str], period: str = "all_time") -> list[dict]:
+    """Get leaderboard for user + their friends."""
+    all_ids = [user_id] + friend_ids
+    if period == "weekly":
+        result = supabase.table("leaderboard_weekly").select("*").in_("user_id", all_ids).order("rank").execute()
+    elif period == "monthly":
+        result = supabase.table("leaderboard_monthly").select("*").in_("user_id", all_ids).order("rank").execute()
+    else:
+        result = supabase.table("leaderboard_global").select("*").in_("user_id", all_ids).order("rank").execute()
+    # Re-rank within friends
+    entries = sorted(result.data, key=lambda x: x.get("xp", x.get("total_xp", 0)), reverse=True)
+    for i, entry in enumerate(entries):
+        entry["rank"] = i + 1
+    return entries
 
 
 async def refresh_leaderboards():
@@ -297,3 +318,143 @@ async def get_streak_days(user_id: str) -> int:
         else:
             break
     return streak
+
+
+# --- Friendships ---
+
+async def send_friend_request(requester_id: str, addressee_id: str) -> dict:
+    result = supabase.table("friendships").insert({
+        "requester_id": requester_id,
+        "addressee_id": addressee_id,
+        "status": "pending",
+    }).execute()
+    return result.data[0]
+
+
+async def get_friendship(friendship_id: str) -> dict | None:
+    result = supabase.table("friendships").select("*").eq("id", friendship_id).execute()
+    return result.data[0] if result.data else None
+
+
+async def get_existing_friendship(user_a: str, user_b: str) -> dict | None:
+    """Check if any friendship exists between two users (in either direction)."""
+    result = supabase.table("friendships").select("*").or_(
+        f"and(requester_id.eq.{user_a},addressee_id.eq.{user_b}),and(requester_id.eq.{user_b},addressee_id.eq.{user_a})"
+    ).execute()
+    return result.data[0] if result.data else None
+
+
+async def update_friendship_status(friendship_id: str, status: str):
+    supabase.table("friendships").update({
+        "status": status,
+        "updated_at": datetime.utcnow().isoformat(),
+    }).eq("id", friendship_id).execute()
+
+
+async def delete_friendship(friendship_id: str):
+    supabase.table("friendships").delete().eq("id", friendship_id).execute()
+
+
+async def get_accepted_friends(user_id: str) -> list[dict]:
+    """Get all accepted friends for a user with profile info."""
+    result = supabase.table("friendships").select(
+        "id, requester_id, addressee_id, profiles!friendships_requester_id_fkey(id, username, display_name, avatar_url, total_xp), addressee:profiles!friendships_addressee_id_fkey(id, username, display_name, avatar_url, total_xp)"
+    ).eq("status", "accepted").or_(
+        f"requester_id.eq.{user_id},addressee_id.eq.{user_id}"
+    ).execute()
+    return result.data
+
+
+async def get_pending_requests(user_id: str) -> list[dict]:
+    """Get pending friend requests addressed to this user."""
+    result = supabase.table("friendships").select(
+        "id, requester_id, created_at, profiles!friendships_requester_id_fkey(id, username, display_name, avatar_url, total_xp)"
+    ).eq("addressee_id", user_id).eq("status", "pending").order("created_at", desc=True).execute()
+    return result.data
+
+
+async def get_friend_ids(user_id: str) -> list[str]:
+    """Get IDs of all accepted friends."""
+    result = supabase.table("friendships").select(
+        "requester_id, addressee_id"
+    ).eq("status", "accepted").or_(
+        f"requester_id.eq.{user_id},addressee_id.eq.{user_id}"
+    ).execute()
+    ids = []
+    for row in result.data:
+        ids.append(row["addressee_id"] if row["requester_id"] == user_id else row["requester_id"])
+    return ids
+
+
+async def search_users(query: str, current_user_id: str) -> list[dict]:
+    """Search profiles by username (partial match), excluding current user."""
+    result = supabase.table("profiles").select(
+        "id, username, display_name, avatar_url, total_xp"
+    ).ilike("username", f"%{query}%").neq("id", current_user_id).limit(10).execute()
+    return result.data
+
+
+async def get_profile_by_username(username: str) -> dict | None:
+    result = supabase.table("profiles").select(
+        "id, username, display_name, avatar_url, total_xp"
+    ).eq("username", username).execute()
+    return result.data[0] if result.data else None
+
+
+# --- Activity Feed ---
+
+async def insert_activity(user_id: str, activity_type: str, metadata: dict) -> dict:
+    result = supabase.table("activity_feed").insert({
+        "user_id": user_id,
+        "activity_type": activity_type,
+        "metadata": metadata,
+    }).execute()
+    return result.data[0]
+
+
+async def has_recent_activity(user_id: str, activity_type: str, metadata_key: str, metadata_value: str, hours: int = 24) -> bool:
+    """Check if a similar activity exists within the last N hours (dedup)."""
+    cutoff = (datetime.utcnow() - timedelta(hours=hours)).isoformat()
+    result = supabase.table("activity_feed").select("id").eq(
+        "user_id", user_id
+    ).eq("activity_type", activity_type).gte("created_at", cutoff).execute()
+    return len(result.data) > 0
+
+
+async def get_friends_feed(user_id: str, friend_ids: list[str], cursor: str | None = None, limit: int = 20) -> list[dict]:
+    """Get activity feed for a list of friend IDs."""
+    if not friend_ids:
+        return []
+
+    query = supabase.table("activity_feed").select(
+        "*, profiles!activity_feed_user_id_fkey(username, avatar_url)"
+    ).in_("user_id", friend_ids).order("created_at", desc=True).limit(limit)
+
+    if cursor:
+        query = query.lt("created_at", cursor)
+
+    result = query.execute()
+    return result.data
+
+
+async def get_activity_reactions(activity_ids: list[str]) -> list[dict]:
+    """Get all reactions for a list of activity IDs."""
+    if not activity_ids:
+        return []
+    result = supabase.table("activity_reactions").select("*").in_("activity_id", activity_ids).execute()
+    return result.data
+
+
+async def upsert_reaction(activity_id: str, user_id: str, emoji: str):
+    """Add or update a reaction. Uses upsert on (activity_id, user_id)."""
+    supabase.table("activity_reactions").upsert({
+        "activity_id": activity_id,
+        "user_id": user_id,
+        "emoji": emoji,
+    }, on_conflict="activity_id,user_id").execute()
+
+
+async def delete_reaction(activity_id: str, user_id: str):
+    supabase.table("activity_reactions").delete().eq(
+        "activity_id", activity_id
+    ).eq("user_id", user_id).execute()

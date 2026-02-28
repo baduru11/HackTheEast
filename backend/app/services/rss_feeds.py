@@ -22,7 +22,6 @@ RSS_SOURCES = [
     {"name": "Yahoo Finance", "url": "https://finance.yahoo.com/news/rssurl"},
     {"name": "MarketWatch", "url": "https://feeds.marketwatch.com/marketwatch/topstories/"},
     {"name": "Motley Fool", "url": "https://www.fool.com/feeds/index.aspx"},
-    {"name": "Seeking Alpha", "url": "https://seekingalpha.com/market_currents.xml"},
 
     # Crypto
     {"name": "CoinDesk", "url": "https://www.coindesk.com/arc/outboundfeeds/rss/"},
@@ -115,11 +114,15 @@ async def fetch_single_feed(source: dict) -> list[dict]:
             snippet_raw = entry.get("summary", "") or entry.get("description", "")
             snippet = _strip_html(snippet_raw)[:500] if snippet_raw else ""
 
+            image_url = _extract_image(entry)
+            if not image_url:
+                continue
+
             articles.append({
                 "headline": headline.strip(),
                 "snippet": snippet,
                 "original_url": link.strip(),
-                "image_url": _extract_image(entry),
+                "image_url": image_url,
                 "published_at": _parse_published(entry),
                 "source_name": source["name"],
             })

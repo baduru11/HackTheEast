@@ -157,6 +157,7 @@ async def debug_reprocess_lessons(background_tasks: BackgroundTasks):
 
 
 async def _reprocess_lessons():
+    import asyncio
     import json
     from app.services import llm
 
@@ -165,22 +166,15 @@ async def _reprocess_lessons():
         "id, headline, raw_content"
     ).eq("processing_status", "done").is_("lesson_data", "null").execute()
 
-    articles = result.data or []
-    print(f"Reprocessing {len(articles)} articles for lessons")
+    articles = [a for a in (result.data or []) if (a.get("raw_content") or "") and len(a.get("raw_content", "")) >= 20]
+    print(f"Reprocessing {len(articles)} articles for lessons (all parallel)")
 
-    processed = 0
-    for article in articles:
+    async def _process_one(article: dict) -> bool:
         article_id = article["id"]
-        raw_text = article.get("raw_content") or ""
-        headline = article.get("headline", "")
-
-        if not raw_text or len(raw_text) < 20:
-            continue
-
         try:
-            lesson = await llm.generate_lesson(headline, raw_text)
+            lesson = await llm.generate_lesson(article["headline"], article["raw_content"])
             if not lesson:
-                continue
+                return False
 
             await db.update_article(article_id, {
                 "ai_summary": lesson.summary,
@@ -193,14 +187,10 @@ async def _reprocess_lessons():
                 quiz_id = existing_quiz["id"]
                 attempts = db.supabase.table("quiz_attempts").select("id").eq("quiz_id", quiz_id).limit(1).execute()
                 if attempts.data:
-                    # Skip quiz recreation — users have attempted it
-                    processed += 1
-                    continue
-                # Delete old quiz questions and quiz
+                    return True
                 db.supabase.table("quiz_questions").delete().eq("quiz_id", quiz_id).execute()
                 db.supabase.table("quizzes").delete().eq("id", quiz_id).execute()
 
-            # Create new 6-question quiz
             quiz_rows = [
                 {
                     "question": q.prompt,
@@ -212,14 +202,14 @@ async def _reprocess_lessons():
                 for q in lesson.quiz
             ]
             await db.insert_quiz(article_id, quiz_rows)
-
-            processed += 1
-            if processed % 5 == 0:
-                print(f"Reprocessed {processed}/{len(articles)} articles")
+            return True
         except Exception as e:
             print(f"Reprocess error for article {article_id}: {e}")
+            return False
 
-    print(f"Reprocessing complete: {processed}/{len(articles)} articles")
+    results = await asyncio.gather(*[_process_one(a) for a in articles], return_exceptions=True)
+    done = sum(1 for r in results if r is True)
+    print(f"Reprocessing complete: {done}/{len(articles)} articles")
 
 
 @router.get("/{article_id}")

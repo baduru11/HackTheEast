@@ -207,6 +207,11 @@ async def _process_single_article(article: dict) -> bool:
         if og_image and og_image != article.get("image_url"):
             await db.update_article(article_id, {"image_url": og_image})
 
+        # Skip articles with no image at all
+        if not og_image and not article.get("image_url"):
+            await db.update_article(article_id, {"processing_status": "failed"})
+            return False
+
         # Fall back to snippet if scraping failed or got too little text
         if not raw_text or len(raw_text) < 100:
             raw_text = article.get("snippet", "")
