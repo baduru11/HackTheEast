@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends
 
 from app.db import supabase as db
 from app.dependencies import get_current_user
-from app.models.quiz import QuizSubmit
+from app.models.quiz import QuizSubmit, QuizCheckBody
 from app.services.gauge import calculate_gauge_gain
 from app.services.xp import calculate_quiz_xp
 from app.services.activity import record_quiz_completed, record_gauge_milestone, record_streak_milestone
@@ -32,6 +32,27 @@ async def get_quiz(article_id: int):
             "id": quiz["id"],
             "article_id": quiz["article_id"],
             "questions": sorted(questions, key=lambda x: x["order_num"]),
+        },
+    }
+
+
+@router.post("/{article_id}/quiz/check")
+async def check_answer(article_id: int, body: QuizCheckBody):
+    quiz = await db.get_quiz_by_article(article_id)
+    if not quiz:
+        return {"success": False, "error": {"code": "NOT_FOUND", "message": "Quiz not found"}}
+
+    questions = sorted(quiz["quiz_questions"], key=lambda x: x["order_num"])
+    if body.question_index < 0 or body.question_index >= len(questions):
+        return {"success": False, "error": {"code": "INVALID_INDEX", "message": "Invalid question index"}}
+
+    q = questions[body.question_index]
+    return {
+        "success": True,
+        "data": {
+            "is_correct": body.answer == q["correct_index"],
+            "correct_answer": q["correct_index"],
+            "explanation": q["explanation"],
         },
     }
 

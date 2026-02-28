@@ -24,6 +24,11 @@ class QuizSubmit(BaseModel):
     answers: list[int]
 
 
+class QuizCheckBody(BaseModel):
+    question_index: int
+    answer: int
+
+
 class QuizResult(BaseModel):
     success: bool = True
     data: "QuizResultData"
